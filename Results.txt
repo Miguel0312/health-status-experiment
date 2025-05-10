@@ -1,0 +1,14 @@
+Back Propagation Neural Network
+
+Architecture: 1 hidden layer, with 64 nodes. 24 inputs chosen based on z-score. Change-Rate is based on 6 hour delta, 24 of the inputs before a failure are taken as examples of failing disks.
+Tested with 1:1 and 4:1 ratios between good and bad samples. Using more good samples decreases the FAR and the FDR.
+This algorithm uses only one neuron as output whose target is 1 for healthy and 0 to failure.
+Loss function: BCELoss, Activation Function: ReLU on the hidden layer, sigmoid on the output to normalize to a probability
+
+
+Got to (99.5, 0.5) and (98.6, 0.28) (FDR, FAR), respectively
+
+#TODO: test  with different voting thresholds, epochs, ratios and specially number of inputs
+#TODO: test with more levels, but each one corresponds to a level between 0 and 1. Can use only one neuron.
+#TODO: try to create a neural network with multiple outputs
+#TODO: use recursive neural network.
