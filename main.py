@@ -8,6 +8,7 @@ import featureSelection
 import preprocess
 import bpnn
 from sklearn.model_selection import train_test_split
+import random
 
 #TODO: improve configuration
 NUMBER_OF_SAMPLES = 24
@@ -53,29 +54,43 @@ good_hard_drives = preprocess.addHealthStatus(good_hard_drives, True, HEALTH_STA
 print("Creating testing and training datasets")
 complete_good = good_hard_drives
 complete_bad = bad_hard_drives
+print(complete_bad.columns)
 
 ratio = bad_hard_drives.size / good_hard_drives.size
 
-good_hard_drives = good_hard_drives.sample(frac=GOOD_BAD_RATIO*ratio)
+good_hard_drives_sample = good_hard_drives.sample(frac=GOOD_BAD_RATIO*ratio)
 
-df = pd.concat([good_hard_drives, bad_hard_drives])
+serial_number_bad = list(bad_hard_drives["serial-number"].unique())
+serial_number_bad_sample = random.sample(serial_number_bad, int(0.8 * len(serial_number_bad)))
+bad_train = bad_hard_drives[bad_hard_drives["serial-number"].isin(serial_number_bad_sample)]
+bad_test = bad_hard_drives[~bad_hard_drives["serial-number"].isin(serial_number_bad_sample)]
+
+serial_number_good = list(good_hard_drives_sample["serial-number"].unique())
+serial_number_good_sample = random.sample(serial_number_good, int(0.8 * len(serial_number_good)))
+good_train = good_hard_drives_sample[good_hard_drives_sample["serial-number"].isin(serial_number_good_sample)]
+good_test = good_hard_drives[~good_hard_drives["serial-number"].isin(serial_number_good_sample)]
+
+df = pd.concat([good_train, bad_train])
 
 df = df.drop(["serial-number", "Drive Status"] , axis = 1)
 
 y=df.pop("Health Status")
 X=df
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# good_test = good_hard_drives.loc[X_train.index]
 
 # Convert data to PyTorch tensors
-X_train= Variable(torch.from_numpy(np.array(X_train)).type(torch.FloatTensor))
-X_test= Variable(torch.from_numpy(np.array(X_test)).type(torch.FloatTensor))
-y_train= Variable(torch.from_numpy(np.array(y_train)).type(torch.LongTensor))
-y_test= Variable(torch.from_numpy(np.array(y_test)).type(torch.LongTensor))
+X_train= Variable(torch.from_numpy(np.array(X)).type(torch.FloatTensor))
+# X_test= Variable(torch.from_numpy(np.array(y)).type(torch.FloatTensor))
+y_train= Variable(torch.from_numpy(np.array(y)).type(torch.LongTensor))
+# y_test= Variable(torch.from_numpy(np.array(y_test)).type(torch.LongTensor))
 
 model = bpnn.BinaryClassifier(FEATURE_COUNT, HIDDEN_NODES)
 loss_fn = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 bpnn.train(X_train, y_train, model, EPOCH_COUNT, loss_fn, optimizer)
-bpnn.evaluate(model, complete_good, complete_bad, VOTE_COUNT)
+bpnn.evaluate(model, good_test, bad_test, VOTE_COUNT)
+# bpnn.evaluate(model, complete_good, complete_bad, VOTE_COUNT)

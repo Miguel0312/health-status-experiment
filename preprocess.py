@@ -23,7 +23,7 @@ def computeChangeRates(df, interval):
 	tmpValues = [np.nan]*interval + tmpValues[:-interval]
 	df["dif-serial-number"] = tmpValues
 	df = df.loc[df["serial-number"] == df["dif-serial-number"]]
-	df.drop(columns=["dif-serial-number"])
+	df = df.drop(columns=["dif-serial-number"])
 
 	return df
 

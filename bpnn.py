@@ -68,4 +68,4 @@ def evaluate(model, data_good, data_bad, voteCount):
         fdr += 1
     
     fdr /= bad_count
-    print(f'FAR: {100*far}%, FDR: {100*fdr}%')
+    print(f'FAR: {100*far:.3f}%, FDR: {100*fdr:.3f}%')
