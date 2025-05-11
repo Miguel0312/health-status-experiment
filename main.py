@@ -1,22 +1,19 @@
 import pandas as pd
 import numpy as np
-import torch
-from torch.autograd import Variable
 import torch.nn as nn
 import torch.optim as optim
+import dataSelection
 import featureSelection
 import preprocess
 import bpnn
-from sklearn.model_selection import train_test_split
-import random
 
 #TODO: improve configuration
 NUMBER_OF_SAMPLES = 24
 DATA_FILE = "data/baidu-dataset.csv"
 CHANGE_RATE_INTERVAL = 6
-FEATURE_COUNT = 24
+FEATURE_COUNT = 16
 HEALTH_STATUS_COUNT = 2
-VOTE_COUNT = 18
+VOTE_COUNT = 12
 SEED = 0
 EPOCH_COUNT = 400
 LEARNING_RATE = 0.01
@@ -24,8 +21,7 @@ FEATURE_SELECTION_ALGORITHM = featureSelection.FeatureSelectionAlgorithm.Z_SCORE
 HEALTH_STATUS_ALGORITHM = preprocess.HealthStatusAlgorithm.LINEAR
 GOOD_BAD_RATIO = 1
 HIDDEN_NODES = 64
-
-torch.manual_seed(SEED)
+VOTE_THRESHOLD = 0.5
 
 print("Reading data file")
 
@@ -52,45 +48,13 @@ bad_hard_drives = preprocess.addHealthStatus(bad_hard_drives, False, HEALTH_STAT
 good_hard_drives = preprocess.addHealthStatus(good_hard_drives, True, HEALTH_STATUS_ALGORITHM, HEALTH_STATUS_COUNT-1)
 
 print("Creating testing and training datasets")
-complete_good = good_hard_drives
-complete_bad = bad_hard_drives
-print(complete_bad.columns)
+X_train, y_train,  good_test, bad_test = dataSelection.train_test(good_hard_drives, bad_hard_drives, SEED, GOOD_BAD_RATIO)
 
-ratio = bad_hard_drives.size / good_hard_drives.size
-
-good_hard_drives_sample = good_hard_drives.sample(frac=GOOD_BAD_RATIO*ratio)
-
-serial_number_bad = list(bad_hard_drives["serial-number"].unique())
-serial_number_bad_sample = random.sample(serial_number_bad, int(0.8 * len(serial_number_bad)))
-bad_train = bad_hard_drives[bad_hard_drives["serial-number"].isin(serial_number_bad_sample)]
-bad_test = bad_hard_drives[~bad_hard_drives["serial-number"].isin(serial_number_bad_sample)]
-
-serial_number_good = list(good_hard_drives_sample["serial-number"].unique())
-serial_number_good_sample = random.sample(serial_number_good, int(0.8 * len(serial_number_good)))
-good_train = good_hard_drives_sample[good_hard_drives_sample["serial-number"].isin(serial_number_good_sample)]
-good_test = good_hard_drives[~good_hard_drives["serial-number"].isin(serial_number_good_sample)]
-
-df = pd.concat([good_train, bad_train])
-
-df = df.drop(["serial-number", "Drive Status"] , axis = 1)
-
-y=df.pop("Health Status")
-X=df
-
-# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# good_test = good_hard_drives.loc[X_train.index]
-
-# Convert data to PyTorch tensors
-X_train= Variable(torch.from_numpy(np.array(X)).type(torch.FloatTensor))
-# X_test= Variable(torch.from_numpy(np.array(y)).type(torch.FloatTensor))
-y_train= Variable(torch.from_numpy(np.array(y)).type(torch.LongTensor))
-# y_test= Variable(torch.from_numpy(np.array(y_test)).type(torch.LongTensor))
-
+print("Creating the AI model")
 model = bpnn.BinaryClassifier(FEATURE_COUNT, HIDDEN_NODES)
 loss_fn = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-bpnn.train(X_train, y_train, model, EPOCH_COUNT, loss_fn, optimizer)
-bpnn.evaluate(model, good_test, bad_test, VOTE_COUNT)
+model.train_model(X_train, y_train, EPOCH_COUNT, loss_fn, optimizer, SEED)   
+model.evaluate(good_test, bad_test, VOTE_COUNT, SEED, VOTE_THRESHOLD)
 # bpnn.evaluate(model, complete_good, complete_bad, VOTE_COUNT)

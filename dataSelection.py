@@ -1,0 +1,34 @@
+import random
+import pandas as pd
+import torch
+from torch.autograd import Variable
+import numpy as np
+
+def train_test(good_hard_drives, bad_hard_drives, seed = 0, good_bad_ratio = 1):
+  random.seed(seed)
+  ratio = bad_hard_drives.size / good_hard_drives.size
+
+  good_hard_drives_sample = good_hard_drives.sample(frac=ratio * good_bad_ratio,random_state=seed)
+
+  serial_number_bad = list(bad_hard_drives["serial-number"].unique())
+  serial_number_bad_sample = random.sample(serial_number_bad, int(0.8 * len(serial_number_bad)))
+  bad_train = bad_hard_drives[bad_hard_drives["serial-number"].isin(serial_number_bad_sample)]
+  bad_test = bad_hard_drives[~bad_hard_drives["serial-number"].isin(serial_number_bad_sample)]
+
+  serial_number_good = list(good_hard_drives_sample["serial-number"].unique())
+  serial_number_good_sample = random.sample(serial_number_good, int(0.8 * len(serial_number_good)))
+  good_train = good_hard_drives_sample[good_hard_drives_sample["serial-number"].isin(serial_number_good_sample)]
+  good_test = good_hard_drives[~good_hard_drives["serial-number"].isin(serial_number_good_sample)]
+
+  df = pd.concat([good_train, bad_train])
+
+  df = df.drop(["serial-number", "Drive Status"] , axis = 1)
+
+  y=df.pop("Health Status")
+  X=df
+
+  # Convert data to PyTorch tensors
+  X_train= Variable(torch.from_numpy(np.array(X)).type(torch.FloatTensor))
+  y_train= Variable(torch.from_numpy(np.array(y)).type(torch.LongTensor))
+
+  return X_train, y_train, good_test, bad_test
