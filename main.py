@@ -12,7 +12,7 @@ NUMBER_OF_SAMPLES = 24
 DATA_FILE = "data/baidu-dataset.csv"
 CHANGE_RATE_INTERVAL = 6
 FEATURE_COUNT = 16
-HEALTH_STATUS_COUNT = 2
+HEALTH_STATUS_COUNT = 4
 VOTE_COUNT = 12
 SEED = 0
 EPOCH_COUNT = 400
@@ -51,8 +51,9 @@ print("Creating testing and training datasets")
 X_train, y_train,  good_test, bad_test = dataSelection.train_test(good_hard_drives, bad_hard_drives, SEED, GOOD_BAD_RATIO)
 
 print("Creating the AI model")
-model = bpnn.BinaryClassifier(FEATURE_COUNT, HIDDEN_NODES)
-loss_fn = nn.BCELoss()
+model = bpnn.MultiLevelClassifier(FEATURE_COUNT, HIDDEN_NODES, HEALTH_STATUS_COUNT)
+# loss_fn = nn.BCELoss()
+loss_fn = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 model.train_model(X_train, y_train, EPOCH_COUNT, loss_fn, optimizer, SEED)   
