@@ -11,16 +11,16 @@ import bpnn
 NUMBER_OF_SAMPLES = 24
 DATA_FILE = "data/baidu-dataset.csv"
 CHANGE_RATE_INTERVAL = 6
-FEATURE_COUNT = 16
-HEALTH_STATUS_COUNT = 4
+FEATURE_COUNT = 24
+HEALTH_STATUS_COUNT = 2
 VOTE_COUNT = 12
 SEED = 0
 EPOCH_COUNT = 400
-LEARNING_RATE = 0.01
+LEARNING_RATE = 0.1
 FEATURE_SELECTION_ALGORITHM = featureSelection.FeatureSelectionAlgorithm.Z_SCORE
 HEALTH_STATUS_ALGORITHM = preprocess.HealthStatusAlgorithm.LINEAR
-GOOD_BAD_RATIO = 1
-HIDDEN_NODES = 64
+GOOD_BAD_RATIO = 4
+HIDDEN_NODES = 10
 VOTE_THRESHOLD = 0.5
 
 print("Reading data file")
@@ -48,14 +48,19 @@ bad_hard_drives = preprocess.addHealthStatus(bad_hard_drives, False, HEALTH_STAT
 good_hard_drives = preprocess.addHealthStatus(good_hard_drives, True, HEALTH_STATUS_ALGORITHM, HEALTH_STATUS_COUNT-1)
 
 print("Creating testing and training datasets")
-X_train, y_train,  good_test, bad_test = dataSelection.train_test(good_hard_drives, bad_hard_drives, SEED, GOOD_BAD_RATIO)
+X_train, y_train,  good_test, bad_test = dataSelection.train_test(good_hard_drives, bad_hard_drives, SEED, GOOD_BAD_RATIO, True)
 
 print("Creating the AI model")
-model = bpnn.MultiLevelClassifier(FEATURE_COUNT, HIDDEN_NODES, HEALTH_STATUS_COUNT)
-# loss_fn = nn.BCELoss()
-loss_fn = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+# model = bpnn.BinaryClassifier(FEATURE_COUNT, HIDDEN_NODES)
+# model = bpnn.MultiLevelClassifier(FEATURE_COUNT, HIDDEN_NODES, HEALTH_STATUS_COUNT)
+model = bpnn.BinaryRNN(FEATURE_COUNT, HIDDEN_NODES)
+# loss_fn = nn.NLLLoss()
+loss_fn = nn.BCELoss()
+# loss_fn = nn.CrossEntropyLoss()
+# optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE)
 
-model.train_model(X_train, y_train, EPOCH_COUNT, loss_fn, optimizer, SEED)   
+
+model.train_model(X_train, y_train, EPOCH_COUNT, loss_fn, optimizer, good_test, bad_test, VOTE_COUNT, SEED)   
 model.evaluate(good_test, bad_test, VOTE_COUNT, SEED, VOTE_THRESHOLD)
 # bpnn.evaluate(model, complete_good, complete_bad, VOTE_COUNT)

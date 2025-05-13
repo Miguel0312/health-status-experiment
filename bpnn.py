@@ -2,19 +2,37 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import numpy as np
+from enum import Enum
+import random
+
+class OutputType(Enum):
+  INTEGER = 1
+  FLOAT = 2
 
 class FailureDetectionNN(nn.Module):
+  def __init__(self):
+    super(FailureDetectionNN, self).__init__()
+    self.output_type = OutputType.INTEGER
+
   def forward(self, x):
     return self.net(x)
 
   def train_model(self, x, y, epochs, loss_fn, optimizer, seed=0):
     torch.manual_seed(seed)
+    # print(x)
+    # print(y)
+    # x = x.drop(["serial-number", "Drive Status"] , axis = 1)
+    # x = Variable(torch.from_numpy(np.array(x)).type(torch.FloatTensor))
+    # y = Variable(torch.from_numpy(np.array(y)).type(torch.LongTensor))
+
     for epoch in range(epochs):
       self.train()
       optimizer.zero_grad()
       outputs = self(x).squeeze()
-      # loss = loss_fn(outputs, y.float())
-      loss = loss_fn(outputs, y)
+      if self.output_type == OutputType.FLOAT:
+        loss = loss_fn(outputs, y.float())
+      elif self.output_type == OutputType.INTEGER:
+        loss = loss_fn(outputs, y)
       loss.backward()
       optimizer.step()
       if (epoch + 1) % 10 == 0:
@@ -25,8 +43,7 @@ class FailureDetectionNN(nn.Module):
       serialNumbers = data["serial-number"].unique()
       count = len(serialNumbers)
       y = data["Health Status"]
-      X = data.drop(columns=["Health Status"])
-      X = X.drop(columns=["Drive Status", "serial-number"])
+      X = data.drop(columns=["Health Status", "Drive Status", "serial-number"], axis=1)
       correct = 0
       for serialNumber in serialNumbers:
         indices = list(
@@ -60,6 +77,7 @@ class FailureDetectionNN(nn.Module):
 class BinaryClassifier(FailureDetectionNN):
   def __init__(self, input_count, hidden_nodes):
     super(BinaryClassifier, self).__init__()
+    self.output_type = OutputType.FLOAT
     self.net = nn.Sequential(
       nn.Linear(input_count, hidden_nodes),
       nn.ReLU(),
@@ -79,6 +97,7 @@ class BinaryClassifier(FailureDetectionNN):
 class MultiLevelClassifier(FailureDetectionNN):
   def __init__(self, input_count, hidden_nodes, output_count):
     super(MultiLevelClassifier, self).__init__()
+    self.output_type = OutputType.INTEGER
     self.net = nn.Sequential(
       nn.Linear(input_count, hidden_nodes),
       nn.ReLU(),
@@ -101,3 +120,97 @@ class MultiLevelClassifier(FailureDetectionNN):
     good = predictions[-1].item()
     return 1 if good >= bad else 0
   
+class BinaryRNN(FailureDetectionNN):
+  def __init__(self, input_count, hidden_nodes):
+    super(BinaryRNN, self).__init__()
+
+    self.hidden_nodes = hidden_nodes
+
+    self.net = nn.RNN(input_count, hidden_nodes,nonlinearity='relu')
+    self.h2o = nn.Linear(hidden_nodes, 1)
+    self.sigmoid = nn.Sigmoid()
+    self.softmax = nn.LogSoftmax(dim=0)
+
+  def forward(self, x):
+    rnn_out, hidden = self.net(x)
+    output = self.h2o(hidden[0])
+    output = self.sigmoid(output)
+    return output
+
+  def train_model(self, x, y, epochs, loss_fn, optimizer, data_good, data_bad, voteCount, seed=0):
+    torch.manual_seed(seed)
+    self.train()
+
+    serialNumbers = x["serial-number"].unique()
+    y = Variable(torch.from_numpy(np.array(y)).type(torch.FloatTensor))
+
+    batches = []
+    answer = []
+    index = 0
+
+    for serialNumber in serialNumbers:
+      answer.append(y[index])
+      hd_data = x[x["serial-number"] == serialNumber]
+      index += len(hd_data)
+      hd_data = hd_data.drop(["serial-number"], axis = 1).tail(12)
+      batches.append(Variable(torch.from_numpy(np.array(hd_data)).type(torch.FloatTensor)))
+
+    permutation = list(range(len(batches)))
+    random.shuffle(permutation)
+    batches = [batches[permutation[i]] for i in range(len(batches))]
+    answer = [answer[permutation[i]] for i in range(len(answer))]
+
+    for epoch in range(epochs):
+      self.zero_grad()
+      self.net.zero_grad()
+
+      current_loss = 0
+      for idx, batch in enumerate(batches):
+        output = self(batch).squeeze()
+
+        loss = loss_fn(output, answer[idx])
+        current_loss += loss
+
+        loss.backward()
+        nn.utils.clip_grad_norm_(self.parameters(), 3)
+        optimizer.step()
+        optimizer.zero_grad()
+
+      current_loss /= len(batches)
+          
+      if (epoch + 1) % 1 == 0:
+        print(f"Epoch [{epoch+1}/{epochs}], Loss: {current_loss:.4f}")
+      if (epoch + 1) % 10 == 0:
+        self.evaluate(data_good, data_bad, voteCount)
+      if(epoch+1) %100 == 0:
+        optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] / 2
+
+  def evaluate_group(self, data, voteCount, target):
+    y = data["Health Status"]
+    x = data.drop(columns=["Health Status", "Drive Status"], axis=1)
+
+    serialNumbers = data["serial-number"].unique()
+    y = Variable(torch.from_numpy(np.array(y)).type(torch.LongTensor))
+    batches = []
+    for serialNumber in serialNumbers:
+      hd_data = x[x["serial-number"] == serialNumber]
+      hd_data = hd_data.drop(["serial-number"], axis = 1).tail(voteCount)
+      batches.append(Variable(torch.from_numpy(np.array(hd_data)).type(torch.FloatTensor)))
+
+    correct = 0
+    for idx, batch in enumerate(batches):
+      output = self(batch)
+      if round(output.item()) == target:
+        correct += 1
+    
+    correct /= len(batches)
+    return correct
+
+  def evaluate(self, data_good, data_bad, voteCount, seed=0, ratio=0.5):
+    torch.manual_seed(seed)
+    self.eval()
+    
+    far = 1 - self.evaluate_group(data_good, voteCount, 1)
+    fdr = self.evaluate_group(data_bad, voteCount, 0)
+
+    print(f"FAR: {100*far:.3f}%, FDR: {100*fdr:.3f}%")
