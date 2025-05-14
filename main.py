@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import torch
 import torch.nn as nn
 import torch.optim as optim
 import dataSelection
@@ -13,14 +14,15 @@ DATA_FILE = "data/baidu-dataset.csv"
 CHANGE_RATE_INTERVAL = 6
 FEATURE_COUNT = 24
 HEALTH_STATUS_COUNT = 2
-VOTE_COUNT = 12
+VOTE_COUNT = 6
 SEED = 0
-EPOCH_COUNT = 400
+EPOCH_COUNT = 2000
 LEARNING_RATE = 0.1
 FEATURE_SELECTION_ALGORITHM = featureSelection.FeatureSelectionAlgorithm.Z_SCORE
 HEALTH_STATUS_ALGORITHM = preprocess.HealthStatusAlgorithm.LINEAR
-GOOD_BAD_RATIO = 4
-HIDDEN_NODES = 10
+# TODO: if this is not 1, needs to set the weights on the neural network
+GOOD_BAD_RATIO = 10
+HIDDEN_NODES = 32
 VOTE_THRESHOLD = 0.5
 
 print("Reading data file")
@@ -53,8 +55,10 @@ X_train, y_train,  good_test, bad_test = dataSelection.train_test(good_hard_driv
 print("Creating the AI model")
 # model = bpnn.BinaryClassifier(FEATURE_COUNT, HIDDEN_NODES)
 # model = bpnn.MultiLevelClassifier(FEATURE_COUNT, HIDDEN_NODES, HEALTH_STATUS_COUNT)
-model = bpnn.BinaryRNN(FEATURE_COUNT, HIDDEN_NODES)
+# model = bpnn.BinaryRNN(FEATURE_COUNT, HIDDEN_NODES)
+model = bpnn.BinaryLSTM(FEATURE_COUNT, HIDDEN_NODES)
 # loss_fn = nn.NLLLoss()
+# loss_fn = nn.BCELoss(weight=torch.tensor([1.0/(1.0+GOOD_BAD_RATIO)]))
 loss_fn = nn.BCELoss()
 # loss_fn = nn.CrossEntropyLoss()
 # optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
