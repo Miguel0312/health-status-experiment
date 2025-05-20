@@ -17,13 +17,11 @@ class FailureDetectionNN(nn.Module):
   def forward(self, x):
     return self.net(x)
 
-  def train_model(self, x, y, epochs, loss_fn, optimizer, seed=0):
+  def train_model(self, x, y, epochs, loss_fn, optimizer, data_good, data_bad, voteCount, seed=0):
     torch.manual_seed(seed)
-    # print(x)
-    # print(y)
-    # x = x.drop(["serial-number", "Drive Status"] , axis = 1)
-    # x = Variable(torch.from_numpy(np.array(x)).type(torch.FloatTensor))
-    # y = Variable(torch.from_numpy(np.array(y)).type(torch.LongTensor))
+    x = x.drop(["serial-number"] , axis = 1)
+    x = Variable(torch.from_numpy(np.array(x)).type(torch.FloatTensor))
+    y = Variable(torch.from_numpy(np.array(y)).type(torch.LongTensor))
 
     for epoch in range(epochs):
       self.train()
@@ -35,8 +33,13 @@ class FailureDetectionNN(nn.Module):
         loss = loss_fn(outputs, y)
       loss.backward()
       optimizer.step()
-      if (epoch + 1) % 10 == 0:
+      if (epoch + 1) % 1 == 0:
         print(f"Epoch [{epoch+1}/{epochs}], Loss: {loss.item():.4f}")
+      # if(epoch+1) %100 == 0:
+      #   optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] / 2
+      # if (epoch + 1) % 50 == 0:
+      #   self.evaluate(data_good, data_bad, voteCount)
+
 
   def evaluate_group(self, data, voteCount, ratio, target):
     with torch.no_grad():
@@ -62,9 +65,9 @@ class FailureDetectionNN(nn.Module):
     return correct / count
 
   def evaluate(self, data_good, data_bad, voteCount, seed=0, ratio=0.5):
-    print(
-        f"Evaluating model. A HD is considererd as failing if more than {ratio:.2f} of its samples are classified as failing."
-    )
+    # print(
+    #     f"Evaluating model. A HD is considererd as failing if more than {ratio:.2f} of its samples are classified as failing."
+    # )
     torch.manual_seed(seed)
     self.eval()
 
@@ -98,11 +101,13 @@ class MultiLevelClassifier(FailureDetectionNN):
   def __init__(self, input_count, hidden_nodes, output_count):
     super(MultiLevelClassifier, self).__init__()
     self.output_type = OutputType.INTEGER
+    self.output_count = output_count
     self.net = nn.Sequential(
       nn.Linear(input_count, hidden_nodes),
       nn.ReLU(),
       nn.Linear(hidden_nodes, output_count),
-      nn.Sigmoid(),
+      # nn.Sigmoid(),
+      # nn.Softmax(dim=1)
     )
     self.first = True
 
@@ -115,10 +120,16 @@ class MultiLevelClassifier(FailureDetectionNN):
     if self.first:
       self.first = False
     # Algorithm described by Health Status Assessment and Failure Prediction for Hard Drives with Recurrent Neural Networks
-    predictions = predictions.sum(dim=0)
-    bad = predictions[0:-2].sum()
-    good = predictions[-1].item()
-    return 1 if good >= bad else 0
+    good = 0
+    # print(predictions)
+    for pred in predictions:
+      pred = nn.Softmax(dim = 0)(pred)
+      # if pred.argmax() == self.output_count - 1:
+      #   good += 1
+      if pred[:-2].sum() < pred[-1]:
+        good += 1
+    # return 1 if predicted == self.output_count - 1 else 0
+    return 1 if good >= len(X_values)*ratio else 0
   
 class BinaryRNN(FailureDetectionNN):
   def __init__(self, input_count, hidden_nodes):
@@ -127,13 +138,13 @@ class BinaryRNN(FailureDetectionNN):
     self.hidden_nodes = hidden_nodes
 
     self.net = nn.RNN(input_count, hidden_nodes,nonlinearity='relu')
-    self.h2o = nn.Linear(hidden_nodes, 1)
+    self.linear = nn.Linear(hidden_nodes, 1)
     self.sigmoid = nn.Sigmoid()
     self.softmax = nn.LogSoftmax(dim=0)
 
   def forward(self, x):
-    rnn_out, hidden = self.net(x)
-    output = self.h2o(hidden[0])
+    output, _ = self.net(x)
+    output = self.linear(output)
     output = self.sigmoid(output)
     return output
 
@@ -147,14 +158,20 @@ class BinaryRNN(FailureDetectionNN):
     batches = []
     answer = []
     index = 0
+    lookback = voteCount
 
     for serialNumber in serialNumbers:
-      answer.append(y[index])
       hd_data = x[x["serial-number"] == serialNumber]
-      index += len(hd_data)
-      hd_data = hd_data.drop(["serial-number"], axis = 1).tail(12)
-      batches.append(Variable(torch.from_numpy(np.array(hd_data)).type(torch.FloatTensor)))
+      hd_data = hd_data.drop(["serial-number"], axis = 1)
+      hd_data = Variable(torch.from_numpy(np.array(hd_data)).type(torch.FloatTensor))
+      i = len(hd_data) - lookback - 1
+      batches.append(hd_data[i:i+lookback])
+      answer.append(y[index+i+1:index+lookback+i+1])
 
+      index += len(hd_data)
+
+    # Need to shuffle the batches because backpropagation is doen after each batch
+    # There may be errors if the model is trained with a long sequence of samples with the same output
     permutation = list(range(len(batches)))
     random.shuffle(permutation)
     batches = [batches[permutation[i]] for i in range(len(batches))]
@@ -189,18 +206,30 @@ class BinaryRNN(FailureDetectionNN):
     y = data["Health Status"]
     x = data.drop(columns=["Health Status", "Drive Status"], axis=1)
 
+    #TODO: cache this
     serialNumbers = data["serial-number"].unique()
-    y = Variable(torch.from_numpy(np.array(y)).type(torch.LongTensor))
+    lookback = voteCount
+    index = 0
+
     batches = []
+
     for serialNumber in serialNumbers:
       hd_data = x[x["serial-number"] == serialNumber]
-      hd_data = hd_data.drop(["serial-number"], axis = 1).tail(voteCount)
-      batches.append(Variable(torch.from_numpy(np.array(hd_data)).type(torch.FloatTensor)))
+      hd_data = hd_data.drop(["serial-number"], axis = 1)
+      hd_data = Variable(torch.from_numpy(np.array(hd_data)).type(torch.FloatTensor))
+      start = len(hd_data) - lookback - 2 if target == 1 else 0
+      for i in range(start, len(hd_data) - lookback - 1):
+        batches.append(hd_data[i:i+lookback])
+      # answer.append(y[index+i+1:index+lookback+i+1])
+
+      index += len(hd_data)
 
     correct = 0
     for idx, batch in enumerate(batches):
       output = self(batch)
-      if round(output.item()) == target:
+      # TODO: use a voting algorithm here
+      result = np.array([round(o.item()) == target for o in output]).sum()
+      if  result >= 0.5 * voteCount:
         correct += 1
     
     correct /= len(batches)
@@ -245,7 +274,7 @@ class BinaryLSTM(FailureDetectionNN):
     lookback = voteCount
 
     for serialNumber in serialNumbers:
-      # TODO: when there are more than 2 classes, this has to be improved
+      # TODO: when there are more than 2 classes, this has to be improved to take samples from every class
       hd_data = x[x["serial-number"] == serialNumber]
       hd_data = hd_data.drop(["serial-number"], axis = 1)
       hd_data = Variable(torch.from_numpy(np.array(hd_data)).type(torch.FloatTensor))
@@ -255,7 +284,8 @@ class BinaryLSTM(FailureDetectionNN):
 
       index += len(hd_data)
 
-
+    # Need to shuffle the batches because backpropagation is doen after each batch
+    # There may be errors if the model is trained with a long sequence of samples with the same output
     permutation = list(range(len(batches)))
     random.shuffle(permutation)
     batches = [batches[permutation[i]] for i in range(len(batches))]
@@ -283,9 +313,9 @@ class BinaryLSTM(FailureDetectionNN):
           
       if (epoch + 1) % 1 == 0:
         print(f"Epoch [{epoch+1}/{epochs}], Loss: {current_loss:.4f}")
-      if (epoch + 1) % 100 == 0:
+      if (epoch + 1) % 10 == 0:
         self.evaluate(data_good, data_bad, voteCount)
-      if(epoch+1) % 100 == 0:
+      if(epoch+1) % 50 == 0:
         # TODO: implement this also on the non RNN models
         optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] / 2
 
@@ -314,9 +344,263 @@ class BinaryLSTM(FailureDetectionNN):
     correct = 0
     for idx, batch in enumerate(batches):
       output = self(batch)
-      # TODO: vote on this
+      # TODO: use a voting algorithm here
       result = np.array([round(o.item()) == target for o in output]).sum()
       if  result >= 0.5 * voteCount:
+        correct += 1
+    
+    correct /= len(batches)
+    return correct
+
+  def evaluate(self, data_good, data_bad, voteCount, seed=0, ratio=0.5):
+    torch.manual_seed(seed)
+    self.eval()
+    
+    far = 1 - self.evaluate_group(data_good, voteCount, 1)
+    fdr = self.evaluate_group(data_bad, voteCount, 0)
+
+    print(f"FAR: {100*far:.3f}%, FDR: {100*fdr:.3f}%")
+
+class MultiLevelRNN(FailureDetectionNN):
+  def __init__(self, input_count, hidden_nodes, output_count):
+    super(MultiLevelRNN, self).__init__()
+
+    self.hidden_nodes = hidden_nodes
+
+    self.net = nn.RNN(input_count, hidden_nodes,nonlinearity='relu')
+    self.linear = nn.Linear(hidden_nodes, output_count)
+    self.sigmoid = nn.Sigmoid()
+    self.softmax = nn.LogSoftmax(dim=0)
+
+  def forward(self, x):
+    output, _ = self.net(x)
+    output = self.linear(output)
+    output = self.sigmoid(output)
+    return output
+
+  def train_model(self, x, y, epochs, loss_fn, optimizer, data_good, data_bad, voteCount, seed=0):
+    torch.manual_seed(seed)
+    self.train()
+
+    serialNumbers = x["serial-number"].unique()
+    y = Variable(torch.from_numpy(np.array(y)).type(torch.FloatTensor))
+
+    batches = []
+    answer = []
+    index = 0
+    lookback = voteCount
+
+    for serialNumber in serialNumbers:
+      hd_data = x[x["serial-number"] == serialNumber]
+      hd_data = hd_data.drop(["serial-number"], axis = 1)
+      hd_data = Variable(torch.from_numpy(np.array(hd_data)).type(torch.FloatTensor))
+      if y[index] == self.linear.out_features -1:
+        i = len(hd_data) - lookback - 1
+        batches.append(hd_data[i:i+lookback])
+        answer.append(y[index+i+1:index+lookback+i+1])
+      else:
+        for i in range(0, len(hd_data) - lookback):
+          # On average takes one sample per failing disk, but on a random spot
+          if random.uniform(0, 1) > (1.0/(len(hd_data)-lookback)):
+            continue
+          batches.append(hd_data[i:i+lookback])
+          answer.append(y[index+i+1:index+lookback+i+1])
+
+      index += len(hd_data)
+
+    # Need to shuffle the batches because backpropagation is doen after each batch
+    # There may be errors if the model is trained with a long sequence of samples with the same output
+    permutation = list(range(len(batches)))
+    random.shuffle(permutation)
+    batches = [batches[permutation[i]] for i in range(len(batches))]
+    answer = [answer[permutation[i]] for i in range(len(answer))]
+
+    for epoch in range(epochs):
+      self.zero_grad()
+      self.net.zero_grad()
+
+      current_loss = 0
+      for idx, batch in enumerate(batches):
+        output = self(batch).squeeze()
+
+        loss = loss_fn(output, answer[idx].long())
+        current_loss += loss
+
+        loss.backward()
+        nn.utils.clip_grad_norm_(self.parameters(), 3)
+        optimizer.step()
+        optimizer.zero_grad()
+
+      current_loss /= len(batches)
+          
+      if (epoch + 1) % 1 == 0:
+        print(f"Epoch [{epoch+1}/{epochs}], Loss: {current_loss:.4f}")
+      if (epoch + 1) % 10 == 0:
+        self.evaluate(data_good, data_bad, voteCount)
+      if(epoch+1) %50 == 0:
+        optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] / 2
+
+  def evaluate_group(self, data, voteCount, target):
+    y = data["Health Status"]
+    x = data.drop(columns=["Health Status", "Drive Status"], axis=1)
+
+    #TODO: cache this
+    serialNumbers = data["serial-number"].unique()
+    lookback = voteCount
+    index = 0
+
+    batches = []
+
+    for serialNumber in serialNumbers:
+      hd_data = x[x["serial-number"] == serialNumber]
+      hd_data = hd_data.drop(["serial-number"], axis = 1)
+      hd_data = Variable(torch.from_numpy(np.array(hd_data)).type(torch.FloatTensor))
+      start = len(hd_data) - lookback - 2 if target == 1 else 0
+      for i in range(start, len(hd_data) - lookback - 1):
+        batches.append(hd_data[i:i+lookback])
+      # answer.append(y[index+i+1:index+lookback+i+1])
+
+      index += len(hd_data)
+
+    correct = 0
+    for idx, batch in enumerate(batches):
+      output = self(batch)
+      cnt = 0
+      for prediction in output:
+        # print(prediction)
+        # TODO: use a voting algorithm here
+        bad = prediction[0:-2].sum()
+        good = prediction[-1].item()
+        if  good >= bad:
+          cnt += 1
+      if (cnt >= 0.5*len(output) and target == 1) or (cnt < 0.5*len(output) and target == 0):
+        correct += 1
+    
+    correct /= len(batches)
+    return correct
+
+  def evaluate(self, data_good, data_bad, voteCount, seed=0, ratio=0.5):
+    torch.manual_seed(seed)
+    self.eval()
+    
+    far = 1 - self.evaluate_group(data_good, voteCount, 1)
+    fdr = self.evaluate_group(data_bad, voteCount, 0)
+
+    print(f"FAR: {100*far:.3f}%, FDR: {100*fdr:.3f}%")
+
+class MultiLevelLSTM(FailureDetectionNN):
+  def __init__(self, input_count, hidden_nodes, output_count):
+    super(MultiLevelLSTM, self).__init__()
+
+    self.hidden_nodes = hidden_nodes
+
+    self.net = nn.LSTM(input_count, hidden_nodes,batch_first=True)
+    self.linear = nn.Linear(hidden_nodes, output_count)
+    self.sigmoid = nn.Sigmoid()
+    self.softmax = nn.LogSoftmax(dim=0)
+
+  def forward(self, x):
+    output, _ = self.net(x)
+    output = self.linear(output)
+    output = self.sigmoid(output)
+    return output
+
+  def train_model(self, x, y, epochs, loss_fn, optimizer, data_good, data_bad, voteCount, seed=0):
+    torch.manual_seed(seed)
+    self.train()
+
+    serialNumbers = x["serial-number"].unique()
+    y = Variable(torch.from_numpy(np.array(y)).type(torch.FloatTensor))
+
+    batches = []
+    answer = []
+    index = 0
+    lookback = voteCount
+
+    for serialNumber in serialNumbers:
+      hd_data = x[x["serial-number"] == serialNumber]
+      hd_data = hd_data.drop(["serial-number"], axis = 1)
+      hd_data = Variable(torch.from_numpy(np.array(hd_data)).type(torch.FloatTensor))
+      if y[index] == self.linear.out_features -1:
+        i = len(hd_data) - lookback - 1
+        batches.append(hd_data[i:i+lookback])
+        answer.append(y[index+i+1:index+lookback+i+1])
+      else:
+        for i in range(0, len(hd_data) - lookback):
+          # On average takes one sample per failing disk, but on a random spot
+          if random.uniform(0, 1) > (1.0/(len(hd_data)-lookback)):
+            continue
+          batches.append(hd_data[i:i+lookback])
+          answer.append(y[index+i+1:index+lookback+i+1])
+
+      index += len(hd_data)
+
+    # Need to shuffle the batches because backpropagation is doen after each batch
+    # There may be errors if the model is trained with a long sequence of samples with the same output
+    permutation = list(range(len(batches)))
+    random.shuffle(permutation)
+    batches = [batches[permutation[i]] for i in range(len(batches))]
+    answer = [answer[permutation[i]] for i in range(len(answer))]
+
+    for epoch in range(epochs):
+      self.zero_grad()
+      self.net.zero_grad()
+
+      current_loss = 0
+      for idx, batch in enumerate(batches):
+        output = self(batch).squeeze()
+
+        loss = loss_fn(output, answer[idx].long())
+        current_loss += loss
+
+        loss.backward()
+        nn.utils.clip_grad_norm_(self.parameters(), 3)
+        optimizer.step()
+        optimizer.zero_grad()
+
+      current_loss /= len(batches)
+          
+      if (epoch + 1) % 1 == 0:
+        print(f"Epoch [{epoch+1}/{epochs}], Loss: {current_loss:.4f}")
+      if (epoch + 1) % 10 == 0:
+        self.evaluate(data_good, data_bad, voteCount)
+      if(epoch+1) %50 == 0:
+        optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] / 2
+
+  def evaluate_group(self, data, voteCount, target):
+    y = data["Health Status"]
+    x = data.drop(columns=["Health Status", "Drive Status"], axis=1)
+
+    #TODO: cache this
+    serialNumbers = data["serial-number"].unique()
+    lookback = voteCount
+    index = 0
+
+    batches = []
+
+    for serialNumber in serialNumbers:
+      hd_data = x[x["serial-number"] == serialNumber]
+      hd_data = hd_data.drop(["serial-number"], axis = 1)
+      hd_data = Variable(torch.from_numpy(np.array(hd_data)).type(torch.FloatTensor))
+      start = len(hd_data) - lookback - 2 if target == 1 else 0
+      for i in range(start, len(hd_data) - lookback - 1):
+        batches.append(hd_data[i:i+lookback])
+      # answer.append(y[index+i+1:index+lookback+i+1])
+
+      index += len(hd_data)
+
+    correct = 0
+    for idx, batch in enumerate(batches):
+      output = self(batch)
+      cnt = 0
+      for prediction in output:
+        # print(prediction)
+        # TODO: use a voting algorithm here
+        bad = prediction[0:-2].sum()
+        good = prediction[-1].item()
+        if  good >= bad:
+          cnt += 1
+      if (cnt >= 0.5*len(output) and target == 1) or (cnt < 0.5*len(output) and target == 0):
         correct += 1
     
     correct /= len(batches)
