@@ -7,22 +7,25 @@ import dataSelection
 import featureSelection
 import preprocess
 import bpnn
+from utils import NNDescription
 
 #TODO: improve configuration
 NUMBER_OF_SAMPLES = 24
 DATA_FILE = "data/baidu-dataset.csv"
 CHANGE_RATE_INTERVAL = 6
 FEATURE_COUNT = 24
-HEALTH_STATUS_COUNT = 6
+HEALTH_STATUS_COUNT = 4
 VOTE_COUNT = 7
 SEED = 0
 EPOCH_COUNT = 400
 LEARNING_RATE = 0.1
 FEATURE_SELECTION_ALGORITHM = featureSelection.FeatureSelectionAlgorithm.Z_SCORE
 HEALTH_STATUS_ALGORITHM = preprocess.HealthStatusAlgorithm.LINEAR
-GOOD_BAD_RATIO = 5
+GOOD_BAD_RATIO = 1
 HIDDEN_NODES = 32
 VOTE_THRESHOLD = 0.5
+
+# TODO: when using a binary model, check that health status count = 2
 
 print("Reading data file")
 
@@ -52,12 +55,12 @@ print("Creating testing and training datasets")
 X_train, y_train,  good_test, bad_test = dataSelection.train_test(good_hard_drives, bad_hard_drives, SEED, GOOD_BAD_RATIO, False)
 
 print("Creating the AI model")
-# model = bpnn.BinaryClassifier(FEATURE_COUNT, HIDDEN_NODES)
-# model = bpnn.MultiLevelClassifier(FEATURE_COUNT, HIDDEN_NODES, HEALTH_STATUS_COUNT)
+# model = bpnn.BinaryBPNN(FEATURE_COUNT, HIDDEN_NODES)
+# model = bpnn.MultiLevelBPNN(FEATURE_COUNT, HIDDEN_NODES, HEALTH_STATUS_COUNT)
 # model = bpnn.BinaryRNN(FEATURE_COUNT, HIDDEN_NODES)
 # model = bpnn.MultiLevelRNN(FEATURE_COUNT, HIDDEN_NODES, HEALTH_STATUS_COUNT)
-model = bpnn.MultiLevelLSTM(FEATURE_COUNT, HIDDEN_NODES, HEALTH_STATUS_COUNT)
 # model = bpnn.BinaryLSTM(FEATURE_COUNT, HIDDEN_NODES)
+model = bpnn.MultiLevelLSTM(FEATURE_COUNT, HIDDEN_NODES, HEALTH_STATUS_COUNT)
 # loss_fn = nn.NLLLoss()
 # loss_fn = nn.BCELoss(weight=torch.tensor([1.0/(1.0+GOOD_BAD_RATIO)]))
 # loss_fn = nn.BCELoss()
@@ -65,7 +68,14 @@ loss_fn = nn.CrossEntropyLoss()
 # optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-7)
 
+if(model.description & NNDescription.BINARY) and HEALTH_STATUS_COUNT != 2:
+  raise ValueError("When training a binary model, the number of classes must be equal to 2")
 
-model.train_model(X_train, y_train, EPOCH_COUNT, loss_fn, optimizer, good_test, bad_test, VOTE_COUNT, SEED)   
+if(model.description & NNDescription.MULTILEVEL) and HEALTH_STATUS_COUNT < 3:
+  raise ValueError("When training a multi level model, the number of classes must be at least 3")
+
+model.validateDescription()
+
+model.train_model(EPOCH_COUNT, X_train, y_train, good_test, bad_test, loss_fn, optimizer, VOTE_COUNT, SEED)   
 model.evaluate(good_test, bad_test, VOTE_COUNT, SEED, VOTE_THRESHOLD)
 # bpnn.evaluate(model, complete_good, complete_bad, VOTE_COUNT)
