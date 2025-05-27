@@ -1,38 +1,31 @@
-import torch
 import torch.nn as nn
-from torch.autograd import Variable
-import numpy as np
-from enum import Enum
 from utils import NNDescription
 import utils
-import random
+from dataclasses import dataclass
+import pandas as pd
+import torch.optim as optim
+import torch
 
+@dataclass
 class ModelSettings():
-  def __init__(self, input_count = None, hidden_nodes = None, output_count = None, evaluate_interval = 10, lr_decay_interval = 100):
-    self.input_count = input_count
-    self.hidden_nodes = hidden_nodes
-    self.output_count = output_count
-    self.evaluate_interval = evaluate_interval
-    self.lr_decay_interval = lr_decay_interval
-
-  def verify(self):
-    if self.input_count is None:
-      raise ValueError("Must specify number of inputs")
-    if self.output_count is None:
-      raise ValueError("Must specify number of outputs")
-    if self.hidden_nodes is None:
-      raise ValueError("Must specify number of hidden nodes")
+  input_count: int
+  hidden_nodes: int
+  output_count: int
+  # TODO: set these values in the settings
+  evaluate_interval: int = 10
+  lr_decay_interval: int = 100
 
 class FailureDetectionNN(nn.Module):
-  def __init__(self, input_count, hidden_nodes, output_count, evaluate_interval = 10, lr_decay_interval = 100):
+  def __init__(self, input_count: int, hidden_nodes: int, output_count: int, evaluate_interval: int = 10, lr_decay_interval: int = 100) -> None:
     super(FailureDetectionNN, self).__init__()
     self.settings = ModelSettings(input_count, hidden_nodes, output_count, evaluate_interval, lr_decay_interval)
-    self.description = 0
+    self.description: NNDescription = NNDescription(0)
+    self.net: nn.Module
 
-  def train_model(self, epochs, train_x, train_y, test_good, test_bad, loss_fn, optimizer, voteCount, seed=0):
+  def train_model(self, epochs: int, train_x: pd.DataFrame, train_y: pd.Series, test_good: pd.DataFrame, test_bad: pd.DataFrame, loss_fn: nn.Module, optimizer: optim.Optimizer, voteCount: int, seed:int = 0):
     utils.train(self,  epochs, train_x, train_y, test_good, test_bad, loss_fn, optimizer, voteCount, seed)
 
-  def evaluate(self, data_good, data_bad, voteCount, seed=0, ratio=0.5):
+  def evaluate(self, data_good: pd.DataFrame, data_bad: pd.DataFrame, voteCount: int, seed:int = 0, ratio:float = 0.5):
     utils.evaluate(self, data_good, data_bad, voteCount, seed, ratio)
 
   def validateDescription(self):
@@ -63,7 +56,7 @@ class FailureDetectionNN(nn.Module):
 
 
 class BinaryBPNN(FailureDetectionNN):
-  def __init__(self, input_count, hidden_nodes):
+  def __init__(self, input_count: int, hidden_nodes: int) -> None:
     super(BinaryBPNN, self).__init__(input_count, hidden_nodes, 1)
     self.description |= NNDescription.BP | NNDescription.BINARY | NNDescription.UNIQUE
     self.net = nn.Sequential(
@@ -73,11 +66,11 @@ class BinaryBPNN(FailureDetectionNN):
       nn.Sigmoid(),
     )
   
-  def forward(self, x):
+  def forward(self, x: torch.Tensor) -> torch.Tensor:
     return self.net(x)
 
 class MultiLevelBPNN(FailureDetectionNN):
-  def __init__(self, input_count, hidden_nodes, output_count):
+  def __init__(self, input_count: int, hidden_nodes: int, output_count: int) -> None:
     super(MultiLevelBPNN, self).__init__(input_count, hidden_nodes, output_count)
     self.description |= NNDescription.BP | NNDescription.MULTILEVEL | NNDescription.UNIQUE
     self.output_count = output_count
@@ -89,11 +82,11 @@ class MultiLevelBPNN(FailureDetectionNN):
       # nn.Softmax(dim=1)
     )
   
-  def forward(self, x):
+  def forward(self, x: torch.Tensor):
     return self.net(x)
 
 class BinaryRNN(FailureDetectionNN):
-  def __init__(self, input_count, hidden_nodes):
+  def __init__(self, input_count: int, hidden_nodes: int) -> None:
     super(BinaryRNN, self).__init__(input_count, hidden_nodes, 2)
 
     self.description |= NNDescription.BINARY | NNDescription.TEMPORAL | NNDescription.RNN
@@ -101,14 +94,14 @@ class BinaryRNN(FailureDetectionNN):
     self.linear = nn.Linear(hidden_nodes, 1)
     self.sigmoid = nn.Sigmoid()
   
-  def forward(self, x):
+  def forward(self, x: torch.Tensor) -> torch.Tensor:
     output, _ = self.net(x)
     output = self.linear(output)
     output = self.sigmoid(output)
     return output
 
 class MultiLevelRNN(FailureDetectionNN):
-  def __init__(self, input_count, hidden_nodes, output_count):
+  def __init__(self, input_count: int, hidden_nodes: int, output_count: int) -> None:
     super(MultiLevelRNN, self).__init__(input_count, hidden_nodes, output_count)
 
     self.description |= NNDescription.MULTILEVEL | NNDescription.TEMPORAL | NNDescription.RNN
@@ -116,14 +109,14 @@ class MultiLevelRNN(FailureDetectionNN):
     self.linear = nn.Linear(hidden_nodes, output_count)
     self.sigmoid = nn.Sigmoid()
 
-  def forward(self, x):
+  def forward(self, x: torch.Tensor) -> torch.Tensor:
     output, _ = self.net(x)
     output = self.linear(output)
     output = self.sigmoid(output)
     return output
 
 class BinaryLSTM(FailureDetectionNN):
-  def __init__(self, input_count, hidden_nodes):
+  def __init__(self, input_count: int, hidden_nodes: int) -> None:
     super(BinaryLSTM, self).__init__(input_count, hidden_nodes, 2)
 
     self.description |= NNDescription.BINARY | NNDescription.LSTM | NNDescription.TEMPORAL
@@ -132,14 +125,14 @@ class BinaryLSTM(FailureDetectionNN):
     self.sigmoid = nn.Sigmoid()
     self.softmax = nn.LogSoftmax(dim=0)
 
-  def forward(self, x):
+  def forward(self, x: torch.Tensor) -> torch.Tensor:
     output, _ = self.net(x)
     output = self.linear(output)
     output = self.sigmoid(output)
     return output
 
 class MultiLevelLSTM(FailureDetectionNN):
-  def __init__(self, input_count, hidden_nodes, output_count):
+  def __init__(self, input_count: int, hidden_nodes: int, output_count: int) -> None:
     super(MultiLevelLSTM, self).__init__(input_count, hidden_nodes, output_count)
 
     self.description |= NNDescription.MULTILEVEL | NNDescription.LSTM | NNDescription.TEMPORAL
@@ -148,7 +141,7 @@ class MultiLevelLSTM(FailureDetectionNN):
     self.sigmoid = nn.Sigmoid()
     self.softmax = nn.LogSoftmax(dim=0)
 
-  def forward(self, x):
+  def forward(self, x: torch.Tensor) -> torch.Tensor:
     output, _ = self.net(x)
     output = self.linear(output)
     output = self.sigmoid(output)
