@@ -32,9 +32,7 @@ def train(
     loss_fn: nn.Module,
     optimizer: torch.optim.Optimizer,
     voteCount: int,
-    seed: int = 0,
 ) -> None:
-    torch.manual_seed(seed)
     model.train()
     if model.description & NNDescription.BP:
         _train_bp(
@@ -47,7 +45,6 @@ def train(
             loss_fn,
             optimizer,
             voteCount,
-            seed=0,
         )
     elif model.description & NNDescription.TEMPORAL:
         _train_temporal(
@@ -60,7 +57,6 @@ def train(
             loss_fn,
             optimizer,
             voteCount,
-            seed=0,
         )
 
 
@@ -69,14 +65,13 @@ def evaluate(
     data_good: pd.DataFrame,
     data_bad: pd.DataFrame,
     voteCount: int,
-    seed: int = 0,
     ratio: float = 0.5,
 ) -> None:
-    torch.manual_seed(seed)
     model.eval()
 
     far: float = 1 - _evaluate_group(model, data_good, voteCount, ratio, 1)
     fdr: float = _evaluate_group(model, data_bad, voteCount, ratio, 0)
+    model.failure_result.append((far, fdr))
 
     print(f"FAR: {100*far:.3f}%, FDR: {100*fdr:.3f}%")
 
@@ -133,7 +128,6 @@ def _train_bp(
     loss_fn: nn.Module,
     optimizer: torch.optim.Optimizer,
     voteCount: int,
-    seed: int = 0,
 ):
     x_df: pd.DataFrame = train_x.drop(["serial-number"], axis=1)
     x: torch.Tensor = torch.tensor(x_df.values, dtype=torch.float32)
@@ -143,7 +137,7 @@ def _train_bp(
     # TODO: try a binary model in which the scores are 0.1 and 0.9 for the bad and good examples
     # Since the output value is normalized from 0 to 1, it gives the model ore space
     if model.description & NNDescription.BINARY:
-        y: torch.Tensor = torch.tensor(train_y.values, dtype=torch.float64)
+        y: torch.Tensor = torch.tensor(train_y.values, dtype=torch.float32)
     elif model.description & NNDescription.MULTILEVEL:
         y = torch.tensor(train_y.values, dtype=torch.int64)
 
@@ -155,6 +149,7 @@ def _train_bp(
         loss.backward()
         optimizer.step()
         print(f"Epoch [{epoch+1}/{epochs}], Loss: {loss.item():.4f}")
+        model.loss.append(loss.item())
         if (epoch + 1) % model.settings.lr_decay_interval == 0:
             optimizer.param_groups[0]["lr"] = optimizer.param_groups[0]["lr"] / 2
         if (epoch + 1) % model.settings.evaluate_interval == 0:
@@ -171,12 +166,11 @@ def _train_temporal(
     loss_fn: nn.Module,
     optimizer: torch.optim.Optimizer,
     voteCount: int,
-    seed: int = 0,
 ) -> None:
     serialNumbers: npt.NDArray[np.int64] = train_x["serial-number"].unique()
 
     if model.description & NNDescription.BINARY:
-        y: torch.Tensor = torch.tensor(train_y.values, dtype=torch.float64)
+        y: torch.Tensor = torch.tensor(train_y.values, dtype=torch.float32)
     elif model.description & NNDescription.MULTILEVEL:
         y = torch.tensor(train_y.values, dtype=torch.int64)
 
@@ -222,9 +216,9 @@ def _train_temporal(
             optimizer.zero_grad()
 
         current_loss /= len(batches)
+        model.loss.append(loss.item())
 
-        if (epoch + 1) % 1 == 0:
-            print(f"Epoch [{epoch+1}/{epochs}], Loss: {current_loss:.4f}")
+        print(f"Epoch [{epoch+1}/{epochs}], Loss: {current_loss:.4f}")
         if (epoch + 1) % 10 == 0:
             model.evaluate(test_good, test_bad, voteCount)
         if (epoch + 1) % 100 == 0:

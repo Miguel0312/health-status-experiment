@@ -1,13 +1,12 @@
 import pandas as pd
-import torch.nn as nn
-import torch
-import torch.optim as optim
 import dataSelection
 import featureSelection
 import preprocess
-import bpnn
-from utils import NNDescription
 import serialization
+import time
+import os.path as path
+import random
+import torch
 
 # TODO: add type annotations
 
@@ -18,6 +17,9 @@ EXPERIMENT_DESCRIPTION_FILE = "experiments/test.toml"
 experiment_config: serialization.ExperimentConfig = serialization.load_experiment(
     EXPERIMENT_DESCRIPTION_FILE
 )
+
+random.seed(experiment_config.seed)
+torch.manual_seed(experiment_config.seed)
 
 print("Reading data file")
 
@@ -64,65 +66,37 @@ print("Creating testing and training datasets")
 X_train, y_train, good_test, bad_test = dataSelection.train_test(
     good_hard_drives,
     bad_hard_drives,
-    experiment_config.seed,
     experiment_config.good_bad_ratio,
     False,
 )
 
 print("Creating the AI model")
-# model = bpnn.BinaryBPNN(FEATURE_COUNT, HIDDEN_NODES)
-model: bpnn.FailureDetectionNN = bpnn.MultiLevelBPNN(
-    experiment_config.feature_count,
-    experiment_config.hidden_nodes,
-    experiment_config.health_status_count,
-)
-# model = bpnn.BinaryRNN(FEATURE_COUNT, HIDDEN_NODES)
-# model = bpnn.MultiLevelRNN(FEATURE_COUNT, HIDDEN_NODES, HEALTH_STATUS_COUNT)
-# model = bpnn.BinaryLSTM(FEATURE_COUNT, HIDDEN_NODES)
-# model = bpnn.MultiLevelLSTM(FEATURE_COUNT, HIDDEN_NODES, HEALTH_STATUS_COUNT)
-# loss_fn = nn.NLLLoss()
-# loss_fn = nn.BCELoss(weight=torch.tensor([1.0/(1.0+GOOD_BAD_RATIO)]))
-# loss_fn = nn.BCELoss()
-loss_fn: nn.Module = nn.CrossEntropyLoss()
-# optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-optimizer: torch.optim.Optimizer = optim.SGD(
-    model.parameters(), lr=experiment_config.learning_rate, weight_decay=1e-7
-)
+experiment_config.model.settings.evaluate_interval = 100
 
-if (
-    model.description & NNDescription.BINARY
-) and experiment_config.health_status_count != 2:
-    raise ValueError(
-        "When training a binary model, the number of classes must be equal to 2"
+try:
+    # TODO: pass the threshold here
+    experiment_config.model.train_model(
+        experiment_config.epoch_count,
+        X_train,
+        y_train,
+        good_test,
+        bad_test,
+        experiment_config.loss_fn,
+        experiment_config.optimizer,
+        experiment_config.vote_count,
     )
-
-if (
-    model.description & NNDescription.MULTILEVEL
-) and experiment_config.health_status_count < 3:
-    raise ValueError(
-        "When training a multi level model, the number of classes must be at least 3"
-    )
-
-model.validateDescription()
-model.settings.evaluate_interval = 100
-
-# TODO: pass the threshold here
-model.train_model(
-    experiment_config.epoch_count,
-    X_train,
-    y_train,
-    good_test,
-    bad_test,
-    loss_fn,
-    optimizer,
-    experiment_config.vote_count,
-    experiment_config.seed,
-)
-model.evaluate(
-    good_test,
-    bad_test,
-    experiment_config.vote_count,
-    experiment_config.seed,
-    experiment_config.vote_threshold,
-)
-# bpnn.evaluate(model, complete_good, complete_bad, VOTE_COUNT)
+except KeyboardInterrupt:
+    pass
+finally:
+    timestr = time.strftime("%Y_%m_%d-%H_%M_%S.txt")
+    with open(path.join("results", timestr), "w") as f:
+        f.write(experiment_config.to_string())
+        f.write("\n#\n")
+        f.write(",".join(map(str, experiment_config.model.loss)))
+        f.write("\n#\n")
+        # FAR
+        f.write(",".join([str(x[0]) for x in experiment_config.model.failure_result]))
+        f.write("\n#\n")
+        # FDR
+        f.write(",".join([str(x[1]) for x in experiment_config.model.failure_result]))
+        f.write("\n#\n")

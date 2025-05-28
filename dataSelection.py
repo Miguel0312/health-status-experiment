@@ -5,11 +5,9 @@ import pandas as pd
 def train_test(
     good_hard_drives: pd.DataFrame,
     bad_hard_drives: pd.DataFrame,
-    seed: int = 0,
     good_bad_ratio: float = 1,
     ratioOverSerialNumbers: bool = False,
 ) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.DataFrame]:
-    random.seed(seed)
     ratio = bad_hard_drives.size / good_hard_drives.size
 
     serial_number_bad: list[int] = list(bad_hard_drives["serial-number"].unique())

@@ -11,10 +11,13 @@ health_status_algorithm = "linear"
 good_bad_ratio = 10
 
 [model]
-health_status_count = 4
+model = "BinaryBPNN"
+health_status_count = 2
 hidden_nodes = 32
 epoch_count = 400
 learning_rate = 0.1
+evaluate_interval = 100
+lr_decay_interval = 100
 
 [vote]
 vote_count = 7
