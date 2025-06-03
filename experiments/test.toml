@@ -8,7 +8,7 @@ change_rate_interval = 6
 feature_count = 24
 feature_selection_algorithm = "z_score"
 health_status_algorithm = "linear"
-good_bad_ratio = 10
+good_bad_ratio = [1, 5, 10]
 
 [model]
 model = "BinaryBPNN"

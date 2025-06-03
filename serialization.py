@@ -6,134 +6,209 @@ from preprocess import HealthStatusAlgorithm
 import bpnn
 import torch
 
-file_name = "experiments/test.toml"
-
 
 @dataclass
 class ExperimentConfig:
     model_type: bpnn.Model = bpnn.Model.Undefined
-    model: bpnn.FailureDetectionNN | None = None
-    optimizer: torch.optim.Optimizer | None = None
-    loss_fn: torch.nn.Module | None = None
+    model: list[bpnn.FailureDetectionNN] = dataclasses.field(default_factory=list)
+    optimizer: list[torch.optim.Optimizer] = dataclasses.field(default_factory=list)
+    loss_fn: list[torch.nn.Module] = dataclasses.field(default_factory=list)
 
-    seed: int = 0
-    data_file: str = ""
-    number_of_failing_samples: int = 0
+    seed: list[int] = dataclasses.field(default_factory=list)
+    data_file: list[str] = dataclasses.field(default_factory=list)
+    number_of_failing_samples: list[int] = dataclasses.field(default_factory=list)
 
-    change_rate_interval: int = 0
-    feature_count: int = 0
-    feature_selection_algorithm: FeatureSelectionAlgorithm = (
-        FeatureSelectionAlgorithm.Z_SCORE
+    change_rate_interval: list[int] = dataclasses.field(default_factory=list)
+    feature_count: list[int] = dataclasses.field(default_factory=list)
+    feature_selection_algorithm: list[FeatureSelectionAlgorithm] = dataclasses.field(
+        default_factory=list
     )
-    health_status_algorithm: HealthStatusAlgorithm = HealthStatusAlgorithm.LINEAR
-    good_bad_ratio: float = 1.0
+    health_status_algorithm: list[HealthStatusAlgorithm] = dataclasses.field(
+        default_factory=list
+    )
+    good_bad_ratio: float = dataclasses.field(default_factory=list)
 
-    health_status_count: int = 6
-    hidden_nodes: int = 10
-    epoch_count: int = 400
-    learning_rate: float = 0.1
+    health_status_count: list[int] = dataclasses.field(default_factory=list)
+    hidden_nodes: list[int] = dataclasses.field(default_factory=list)
+    epoch_count: list[int] = dataclasses.field(default_factory=list)
+    learning_rate: list[float] = dataclasses.field(default_factory=list)
 
-    vote_count: int = 1
-    vote_threshold: float = 0.5
+    vote_count: list[int] = dataclasses.field(default_factory=list)
+    vote_threshold: list[float] = dataclasses.field(default_factory=list)
 
-    def to_string(self) -> str:
+    def print_experiment(self, i) -> str:
         res: str = "{"
 
         for field in dataclasses.fields(self):
-            res += f"{field.name}: {getattr(self, field.name)},\n"
+            if type(getattr(self, field.name)) is list:
+                res += f"{field.name}: {getattr(self, field.name)[i]},\n"
+            else:
+                res += f"{field.name}: {getattr(self, field.name)},\n"
 
         res += "}"
 
         return res
 
 
+def process_field(field, length):
+    if type(field) is list:
+        if len(field) != length:
+            raise ValueError("All lists must have the same length")
+        return field
+    else:
+        return [field] * length
+
+
 def load_experiment(file_name: str) -> ExperimentConfig:
     with open(file_name, "r") as f:
         experiment_description = toml.load(f)
 
+    maxi = 1
+    for table in experiment_description.values():
+        for field in table.values():
+            if type(field) is list:
+                maxi = max(maxi, len(field))
+
     config: ExperimentConfig = ExperimentConfig()
 
-    config.seed = experiment_description["dataset"]["seed"]
-    config.data_file = experiment_description["dataset"]["data_file"]
-    config.number_of_failing_samples = experiment_description["dataset"][
-        "number_of_failing_samples"
-    ]
-
-    config.change_rate_interval = experiment_description["preprocessing"][
-        "change_rate_interval"
-    ]
-    config.feature_count = experiment_description["preprocessing"]["feature_count"]
-    config.feature_selection_algorithm = FeatureSelectionAlgorithm[
-        experiment_description["preprocessing"]["feature_selection_algorithm"].upper()
-    ]
-    config.health_status_algorithm = HealthStatusAlgorithm[
-        experiment_description["preprocessing"]["health_status_algorithm"].upper()
-    ]
-    config.good_bad_ratio = experiment_description["preprocessing"]["good_bad_ratio"]
-
-    config.health_status_count = experiment_description["model"]["health_status_count"]
-    config.hidden_nodes = experiment_description["model"]["hidden_nodes"]
-    config.epoch_count = experiment_description["model"]["epoch_count"]
-    config.learning_rate = experiment_description["model"]["learning_rate"]
-
-    config.vote_count = experiment_description["vote"]["vote_count"]
-    config.vote_threshold = experiment_description["vote"]["vote_threshold"]
-
-    config.model_type = bpnn.Model[experiment_description["model"]["model"]]
-    match config.model_type:
-        case bpnn.Model.BinaryBPNN:
-            config.model = bpnn.BinaryBPNN(config.feature_count, config.hidden_nodes)
-        case bpnn.Model.MultiLevelBPNN:
-            config.model = bpnn.MultiLevelBPNN(
-                config.feature_count, config.hidden_nodes, config.health_status_count
-            )
-        case bpnn.Model.BinaryRNN:
-            config.model = bpnn.BinaryRNN(config.feature_count, config.hidden_nodes)
-        case bpnn.Model.MultiLevelRNN:
-            config.model = bpnn.MultiLevelRNN(
-                config.feature_count, config.hidden_nodes, config.health_status_count
-            )
-        case bpnn.Model.BinaryLSTM:
-            config.model = bpnn.BinaryLSTM(config.feature_count, config.hidden_nodes)
-        case bpnn.Model.MultiLevelLSTM:
-            config.model = bpnn.MultiLevelLSTM(
-                config.feature_count, config.hidden_nodes, config.health_status_count
-            )
-
-    if config.model is None or not config.model.validateDescription():
-        raise ValueError("Could not initialize model with the given configuration")
-
-    if (
-        config.model.description & bpnn.NNDescription.BINARY
-    ) and config.health_status_count != 2:
-        raise ValueError(
-            "When training a binary model, the number of classes must be equal to 2"
-        )
-
-    if (
-        config.model.description & bpnn.NNDescription.MULTILEVEL
-    ) and config.health_status_count < 3:
-        raise ValueError(
-            "When training a multi level model, the number of classes must be at least 3"
-        )
-
-    config.model.settings.lr_decay_interval = experiment_description["model"][
-        "lr_decay_interval"
-    ]
-    config.model.settings.evaluate_interval = experiment_description["model"][
-        "evaluate_interval"
-    ]
-
-    # TODO: try with the Adam optimizer
-    config.optimizer = torch.optim.SGD(
-        config.model.parameters(),
-        lr=config.learning_rate,
-        weight_decay=1e-7,
+    config.seed = process_field(experiment_description["dataset"]["seed"], maxi)
+    config.data_file = process_field(
+        experiment_description["dataset"]["data_file"], maxi
+    )
+    config.number_of_failing_samples = process_field(
+        experiment_description["dataset"]["number_of_failing_samples"], maxi
     )
 
-    if config.model.description & bpnn.NNDescription.BINARY:
-        config.loss_fn = torch.nn.BCELoss()
+    config.change_rate_interval = process_field(
+        experiment_description["preprocessing"]["change_rate_interval"], maxi
+    )
+    config.feature_count = process_field(
+        experiment_description["preprocessing"]["feature_count"], maxi
+    )
+    # TODO: since these two take enums, it should be a little different when there are multiple values
+    config.feature_selection_algorithm = process_field(
+        FeatureSelectionAlgorithm[
+            experiment_description["preprocessing"][
+                "feature_selection_algorithm"
+            ].upper()
+        ],
+        maxi,
+    )
+    config.health_status_algorithm = process_field(
+        HealthStatusAlgorithm[
+            experiment_description["preprocessing"]["health_status_algorithm"].upper()
+        ],
+        maxi,
+    )
+    config.good_bad_ratio = process_field(
+        experiment_description["preprocessing"]["good_bad_ratio"], maxi
+    )
+
+    config.health_status_count = process_field(
+        experiment_description["model"]["health_status_count"], maxi
+    )
+    config.hidden_nodes = process_field(
+        experiment_description["model"]["hidden_nodes"], maxi
+    )
+    config.epoch_count = process_field(
+        experiment_description["model"]["epoch_count"], maxi
+    )
+    config.learning_rate = process_field(
+        experiment_description["model"]["learning_rate"], maxi
+    )
+
+    config.vote_count = process_field(
+        experiment_description["vote"]["vote_count"], maxi
+    )
+    config.vote_threshold = process_field(
+        experiment_description["vote"]["vote_threshold"], maxi
+    )
+
+    config.model_type = bpnn.Model[experiment_description["model"]["model"]]
+
+    for i in range(maxi):
+        match config.model_type:
+            case bpnn.Model.BinaryBPNN:
+                config.model.append(
+                    bpnn.BinaryBPNN(config.feature_count[i], config.hidden_nodes[i])
+                )
+            case bpnn.Model.MultiLevelBPNN:
+                config.model.append(
+                    bpnn.MultiLevelBPNN(
+                        config.feature_count[i],
+                        config.hidden_nodes[i],
+                        config.health_status_count[i],
+                    )
+                )
+            case bpnn.Model.BinaryRNN:
+                config.model.append(
+                    bpnn.BinaryRNN(config.feature_count[i], config.hidden_nodes[i])
+                )
+            case bpnn.Model.MultiLevelRNN:
+                config.model.append(
+                    bpnn.MultiLevelRNN(
+                        config.feature_count[i],
+                        config.hidden_nodes[i],
+                        config.health_status_count[i],
+                    )
+                )
+            case bpnn.Model.BinaryLSTM:
+                config.model.append(
+                    bpnn.BinaryLSTM(config.feature_count[i], config.hidden_nodes[i])
+                )
+            case bpnn.Model.MultiLevelLSTM:
+                config.model.append(
+                    bpnn.MultiLevelLSTM(
+                        config.feature_count[i],
+                        config.hidden_nodes[i],
+                        config.health_status_count[i],
+                    )
+                )
+
+    if not config.model:
+        raise ValueError("Invalid model type")
+
+    lr_decay = process_field(experiment_description["model"]["lr_decay_interval"], maxi)
+    evaluate_interval = process_field(
+        experiment_description["model"]["evaluate_interval"], maxi
+    )
+
+    for idx, model in enumerate(config.model):
+        if not model.validateDescription():
+            raise ValueError(
+                "It is not possible to create a odel with the given parameters"
+            )
+
+        if (
+            model.description & bpnn.NNDescription.BINARY
+        ) and config.health_status_count[idx] != 2:
+            raise ValueError(
+                "When training a binary model, the number of classes must be equal to 2"
+            )
+
+        if (
+            model.description & bpnn.NNDescription.MULTILEVEL
+        ) and config.health_status_count[idx] < 3:
+            raise ValueError(
+                "When training a multi level model, the number of classes must be at least 3"
+            )
+
+        model.settings.lr_decay_interval = lr_decay[idx]
+        model.settings.evaluate_interval = evaluate_interval[idx]
+
+    for i in range(maxi):
+        # TODO: try with the Adam optimizer
+        config.optimizer.append(
+            torch.optim.SGD(
+                config.model[i].parameters(),
+                lr=config.learning_rate[i],
+                weight_decay=1e-7,
+            )
+        )
+
+    if config.model[0].description & bpnn.NNDescription.BINARY:
+        config.loss_fn = [torch.nn.BCELoss()] * maxi
     else:
-        config.loss_fn = torch.nn.CrossEntropyLoss()
+        config.loss_fn = [torch.nn.CrossEntropyLoss()] * maxi
 
     return config
