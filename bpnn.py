@@ -122,6 +122,7 @@ class BinaryBPNN(FailureDetectionNN):
         )
         self.net = nn.Sequential(
             nn.Linear(input_count, hidden_nodes),
+            # nn.ReLU(),
             nn.ReLU(),
             nn.Linear(hidden_nodes, 1),
             nn.Sigmoid(),

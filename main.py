@@ -18,6 +18,8 @@ for file_name in sys.argv[1:]:
         file_name
     )
 
+    results = []
+
     # TODO: separate the data that can change from one experiment to the other from the one that can't
     for i in range(len(experiment_config.model)):
         random.seed(experiment_config.seed[i])
@@ -32,13 +34,14 @@ for file_name in sys.argv[1:]:
             data, experiment_config.change_rate_interval[i]
         )
 
-        good_hard_drives: pd.DataFrame = data[data["Drive Status"] == 1]
-        bad_hard_drives: pd.DataFrame = preprocess.getLastSamples(
-            data[data["Drive Status"] == -1],
-            experiment_config.number_of_failing_samples[i],
-        )
+        # good_hard_drives: pd.DataFrame = data[data["Drive Status"] == 1]
+        # bad_hard_drives = data[data["Drive Status"] == -1]
+        # bad_hard_drives: pd.DataFrame = preprocess.getLastSamples(
+        #     data[data["Drive Status"] == -1],
+        #     experiment_config.number_of_failing_samples[i],
+        # )
 
-        data = pd.concat([bad_hard_drives, good_hard_drives])
+        # data = pd.concat([bad_hard_drives, good_hard_drives])
 
         # TODO: check if the features change a lot when CHANGE_RATE_INTERVAL and NUMBER_OF_SAMPLES change
         print(
@@ -54,6 +57,10 @@ for file_name in sys.argv[1:]:
         print(
             f"Adding Health Status Values using {experiment_config.health_status_algorithm[i].name} algorithm"
         )
+
+        good_hard_drives: pd.DataFrame = data[data["Drive Status"] == 1]
+        bad_hard_drives: pd.DataFrame = data[data["Drive Status"] == -1]
+
         bad_hard_drives = preprocess.addHealthStatus(
             bad_hard_drives,
             False,
@@ -72,11 +79,15 @@ for file_name in sys.argv[1:]:
             good_hard_drives,
             bad_hard_drives,
             experiment_config.good_bad_ratio[i],
-            False,
+            experiment_config.number_of_failing_samples[i],
         )
 
-        print("Creating the AI model")
-        experiment_config.model[i].settings.evaluate_interval = 100
+        # X_train = preprocess.getLastSamples(
+        #     X_train,
+        #     experiment_config.number_of_failing_samples[i],
+        # )
+
+        print("Training the AI model")
 
         try:
             # TODO: pass the threshold here
@@ -93,6 +104,8 @@ for file_name in sys.argv[1:]:
         except KeyboardInterrupt:
             pass
         finally:
+            results.append(experiment_config.model[i].failure_result[-1])
+
             timestr = time.strftime("%Y_%m_%d-%H_%M_%S.txt")
             with open(path.join("results", timestr), "w") as f:
                 f.write(experiment_config.print_experiment(i))
@@ -113,3 +126,7 @@ for file_name in sys.argv[1:]:
                     )
                 )
                 f.write("\n#\n")
+    
+    print("\n-------------Results----------------")
+    for result in results:
+        print(f"FAR: {100*result[0]:.3f}%, FDR: {100*result[1]:.3f}%")

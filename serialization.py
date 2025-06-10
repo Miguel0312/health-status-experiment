@@ -40,10 +40,16 @@ class ExperimentConfig:
         res: str = "{"
 
         for field in dataclasses.fields(self):
+            if field.name in ["model", "optimizer", "loss_fn"]:
+                continue
+
+            attr = getattr(self, field.name)
             if type(getattr(self, field.name)) is list:
-                res += f"{field.name}: {getattr(self, field.name)[i]},\n"
-            else:
-                res += f"{field.name}: {getattr(self, field.name)},\n"
+                attr = attr[i]
+            if type(attr) is not int and type(attr) is not float:
+                attr = '"' + str(attr) + '"'
+
+            res += f'"{field.name}": {attr},\n'
 
         res += "}"
 
@@ -125,6 +131,7 @@ def load_experiment(file_name: str) -> ExperimentConfig:
     )
 
     config.model_type = bpnn.Model[experiment_description["model"]["model"]]
+    print(config.feature_count[0])
 
     for i in range(maxi):
         match config.model_type:
