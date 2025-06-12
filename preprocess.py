@@ -67,7 +67,7 @@ def addHealthStatus(
     Else the algorithm is used to give a score in [0,maxLevel-1]
     """
     if good:
-        df["Health Status"] = [maxLevel for i in range(len(df))]
+        df = df.assign(**{"Health Status": [maxLevel for i in range(len(df))]})
         return df
 
     func: Callable[[int, int, int, int], int] | None = None
@@ -83,5 +83,5 @@ def addHealthStatus(
         newValues: list[int] = [func(0, maxLevel - 1, i, cnt) for i in range(cnt)]
         healthStatusValues = healthStatusValues + newValues
 
-    df["Health Status"] = healthStatusValues
+    df = df.assign(**{"Health Status": healthStatusValues})
     return df

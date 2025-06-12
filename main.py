@@ -14,7 +14,14 @@ if len(sys.argv) < 2:
     print("Usage: python3 main.py experiment1 [experiment2 experiment3 ...]")
     exit(0)
 
-for file_name in sys.argv[1:]:
+attributes = [
+    "health_status_count",
+    "good_bad_ratio",
+    "hidden_nodes",
+    "learning_rate",
+]
+
+for fileIDX, file_name in enumerate(sys.argv[1:]):
     experiment_config: serialization.ExperimentConfig = serialization.load_experiment(
         file_name
     )
@@ -29,14 +36,14 @@ for file_name in sys.argv[1:]:
         torch.manual_seed(experiment_config.seed[i])
         np.random.seed(experiment_config.seed[i])
 
-        print("Reading data file")
+        # print("Reading data file")
 
         data: pd.DataFrame = pd.read_csv(experiment_config.data_file[i])
 
-        print("Computing change rates")
-        # data = preprocess.computeChangeRates(
-        #     data, experiment_config.change_rate_interval[i]
-        # )
+        # print("Computing change rates")
+        data = preprocess.computeChangeRates(
+            data, experiment_config.change_rate_interval[i]
+        )
 
         # good_hard_drives: pd.DataFrame = data[data["Drive Status"] == 1]
         # bad_hard_drives = data[data["Drive Status"] == -1]
@@ -48,19 +55,19 @@ for file_name in sys.argv[1:]:
         # data = pd.concat([bad_hard_drives, good_hard_drives])
 
         # TODO: check if the features change a lot when CHANGE_RATE_INTERVAL and NUMBER_OF_SAMPLES change
-        print(
-            f"Selecting {experiment_config.feature_count[i]} features using the {experiment_config.feature_selection_algorithm[i].name} algorithm"
-        )
+        # print(
+        #     f"Selecting {experiment_config.feature_count[i]} features using the {experiment_config.feature_selection_algorithm[i].name} algorithm"
+        # )
         data = featureSelection.selectFeatures(
             data,
             featureSelection.FeatureSelectionAlgorithm.Z_SCORE,
             experiment_config.feature_count[i],
         )
-        print(f"Features kept: {str(list(data.columns)[2:])}")
+        # print(f"Features kept: {str(list(data.columns)[2:])}")
 
-        print(
-            f"Adding Health Status Values using {experiment_config.health_status_algorithm[i].name} algorithm"
-        )
+        # print(
+        #     f"Adding Health Status Values using {experiment_config.health_status_algorithm[i].name} algorithm"
+        # )
 
         good_hard_drives: pd.DataFrame = data[data["Drive Status"] == 1]
         bad_hard_drives: pd.DataFrame = data[data["Drive Status"] == -1]
@@ -78,7 +85,7 @@ for file_name in sys.argv[1:]:
             experiment_config.health_status_count[i] - 1,
         )
 
-        print("Creating testing and training datasets")
+        # print("Creating testing and training datasets")
         X_train, y_train, good_test, bad_test = dataSelection.train_test(
             good_hard_drives,
             bad_hard_drives,
@@ -91,7 +98,7 @@ for file_name in sys.argv[1:]:
         #     experiment_config.number_of_failing_samples[i],
         # )
 
-        print("Training the AI model")
+        # print("Training the AI model")
 
         try:
             # TODO: pass the threshold here
@@ -166,7 +173,7 @@ for file_name in sys.argv[1:]:
         )
 
     # TODO: read this from command line arguments
-    attribute = "feature_count"
+    attribute = attributes[fileIDX]
 
     print(f"|{attribute}|FAR(%)|FDR(%)|TIA(h)|TIA SD(h)|")
     print("|-------------|------|------|------|---------|")

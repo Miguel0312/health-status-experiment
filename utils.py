@@ -265,4 +265,4 @@ def _vote_multilevel(
         pred = nn.Softmax(dim=0)(pred)
         if pred[:-2].sum() < pred[-1]:
             good += 1
-    return 1 if good >= len(X_values) * ratio else 0
+    return 1 if good >= len(X_values) * (1 - ratio) else 0

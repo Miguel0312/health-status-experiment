@@ -26,19 +26,19 @@
 
 - [x] Find standard parameters
 - [x] Find number of epochs
-- [ ] Vary number of failing samples
-- [ ] Vary Change Rate Interval
-- [ ] Vary Feature Count
+- [x] Vary number of failing samples
+- [x] Vary Change Rate Interval
+- [x] Vary Feature Count
 - [ ] Vary Feature Selection Algorithm
 - [ ] Vary Health Status Algorithm
-- [ ] Vary Health Status Count
-- [ ] Vary Good Bad ratio
-- [ ] Vary Hidden Nodes
-- [ ] Vary Learning Rate
-- [ ] Vary Decay Interval
-- [ ] Vary Vote Count
-- [ ] Vary Vote Threshold
-- [ ] Exclude Change Rate
+- [x] Vary Health Status Count
+- [x] Vary Good Bad ratio
+- [x] Vary Hidden Nodes
+- [x] Vary Learning Rate
+- [x] Vary Decay Interval
+- [x] Vary Vote Count
+- [x] Vary Vote Threshold
+- [x] Exclude Change Rate
 
 ## Binary RNN:
 
