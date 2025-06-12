@@ -31,7 +31,6 @@ def train_test(
         set(serial_number_good) - set(serial_number_good_train)
     )
 
-    # print(len(serial_number_good_train))
     good_train: pd.DataFrame = good_hard_drives[
         good_hard_drives["serial-number"].isin(serial_number_good_train)
     ]
@@ -39,9 +38,6 @@ def train_test(
     good_test: pd.DataFrame = good_hard_drives[
         good_hard_drives["serial-number"].isin(serial_number_good_test)
     ]
-
-    print(len(good_train), len(bad_train))
-    # exit(0)
 
     df: pd.DataFrame = pd.concat([bad_train, good_train])
     df = df.drop(["Drive Status"], axis=1)

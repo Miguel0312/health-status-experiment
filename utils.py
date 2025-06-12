@@ -33,7 +33,6 @@ def train(
     optimizer: torch.optim.Optimizer,
     voteCount: int,
 ) -> None:
-    model.train()
     if model.description & NNDescription.BP:
         _train_bp(
             model,
@@ -69,12 +68,14 @@ def evaluate(
 ) -> None:
     model.eval()
 
-    # TODO: compute the time in advance
-    far: float = 1 - _evaluate_group(model, data_good, voteCount, ratio, 1)
-    fdr: float = _evaluate_group(model, data_bad, voteCount, ratio, 0, True)
-    model.failure_result.append((far, fdr))
+    (far, _, _) = _evaluate_group(model, data_good, voteCount, ratio, 1)
+    far = 1 - far
+    (fdr, tia, stdDev) = _evaluate_group(model, data_bad, voteCount, ratio, 0, True)
+    model.failure_result.append((far, fdr, tia, stdDev))
 
-    print(f"FAR: {100*far:.3f}%, FDR: {100*fdr:.3f}%")
+    print(
+        f"FAR: {100*far:.3f}%, FDR: {100*fdr:.3f}%, TIA: {tia:.3f}h, TIA Std Dev: {stdDev:.3f}"
+    )
 
 
 # TODO: transform target into an enum
@@ -84,7 +85,7 @@ def _evaluate_group(
     voteCount: int,
     ratio: float,
     target: int,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> float:
     with torch.no_grad():
         serialNumbers: npt.NDArray[np.int64] = data["serial-number"].unique()
@@ -93,7 +94,7 @@ def _evaluate_group(
             columns=["Health Status", "Drive Status", "serial-number"], axis=1
         )
         correct: int = 0
-        first = True
+        tia: list[int] = []
         for serialNumber in serialNumbers:
             # indices: list[int] = list(
             #     data[data["serial-number"] == serialNumber].index[-voteCount:]
@@ -101,26 +102,27 @@ def _evaluate_group(
             # X_test: torch.Tensor = torch.tensor(
             #     X.loc[indices].values, dtype=torch.float32
             # )
-            indices: list[int] = list(
-                data[data["serial-number"] == serialNumber].index
+            indices: list[int] = list(data[data["serial-number"] == serialNumber].index)
+            X_test: torch.Tensor = torch.tensor(
+                X.loc[indices].values, dtype=torch.float32
             )
-            X_test: torch.Tensor = torch.tensor(X.loc[indices].values, dtype = torch.float32)
 
             result = 1
 
             for i in range(0, len(X_test) - voteCount):
-                candidates = X_test[i:i+voteCount]
+                candidates = X_test[i : i + voteCount]
                 pred = _vote(model, candidates, ratio)
                 # if first:
                 #     print(serialNumber, candidates, pred)
                 if pred == 0:
+                    tia.append(len(X_test) - i + voteCount)
                     result = 0
                     break
-            
+
             if result == target:
                 correct += 1
 
-    return correct / count
+    return (correct / count, np.mean(tia), np.std(tia))
 
 
 def _vote(model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float) -> int:
@@ -128,7 +130,6 @@ def _vote(model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float) -> 
     X_values correspond to a sequence of consecutive samples to a given hard drive
     The function returns 0 (the HD is considered as failing) if more than ratio of the samples are considered as failing, else it returns 1
     """
-    model.eval()
     if model.description & NNDescription.BINARY:
         return _vote_binary(model, X_values, ratio)
     elif model.description & NNDescription.MULTILEVEL:

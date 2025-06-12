@@ -2,28 +2,30 @@
 
 - [ ] Implement other feature selection algorithms
 - [ ] Implement other Health Score algorithms
-- [ ] Compute Time In Advance
+- [x] Compute Time In Advance
+- [ ] Save the evaluation interval when serializing
 
 ## Binary BPNN:
 
 - [x] Find standard parameters
 - [x] Find number of epochs
-- [ ] Vary number of failing samples
-- [ ] Vary Change Rate Interval
-- [ ] Vary Feature Count
+- [x] Vary number of failing samples
+- [x] Vary Change Rate Interval
+- [x] Vary Feature Count
 - [ ] Vary Feature Selection Algorithm
-- [ ] Vary Good Bad ratio
-- [ ] Vary Hidden Nodes
-- [ ] Vary Learning Rate
-- [ ] Vary Decay Interval
-- [ ] Vary Vote Count
-- [ ] Vary Vote Threshold
+- [x] Vary Good Bad ratio
+- [x] Vary Hidden Nodes
+- [x] Vary Learning Rate
+- [x] Vary Decay Interval
+- [x] Vary Vote Count
+- [x] Vary Vote Threshold
+- [x] Exclude Change Rate
 
 
 ## Multilevel BPNN:
 
-- [ ] Find standard parameters
-- [ ] Find number of epochs
+- [x] Find standard parameters
+- [x] Find number of epochs
 - [ ] Vary number of failing samples
 - [ ] Vary Change Rate Interval
 - [ ] Vary Feature Count
@@ -36,6 +38,7 @@
 - [ ] Vary Decay Interval
 - [ ] Vary Vote Count
 - [ ] Vary Vote Threshold
+- [ ] Exclude Change Rate
 
 ## Binary RNN:
 
@@ -51,6 +54,7 @@
 - [ ] Vary Decay Interval
 - [ ] Vary Vote Count
 - [ ] Vary Vote Threshold
+- [ ] Exclude Change Rate
 
 
 ## Multilevel RNN:
@@ -69,6 +73,7 @@
 - [ ] Vary Decay Interval
 - [ ] Vary Vote Count
 - [ ] Vary Vote Threshold
+- [ ] Exclude Change Rate
 
 ## Binary LSTM:
 
@@ -84,6 +89,7 @@
 - [ ] Vary Decay Interval
 - [ ] Vary Vote Count
 - [ ] Vary Vote Threshold
+- [ ] Exclude Change Rate
 
 
 ## Multilevel LSTM:
@@ -102,3 +108,4 @@
 - [ ] Vary Decay Interval
 - [ ] Vary Vote Count
 - [ ] Vary Vote Threshold
+- [ ] Exclude Change Rate

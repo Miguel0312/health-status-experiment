@@ -131,7 +131,6 @@ def load_experiment(file_name: str) -> ExperimentConfig:
     )
 
     config.model_type = bpnn.Model[experiment_description["model"]["model"]]
-    print(config.feature_count[0])
 
     for i in range(maxi):
         match config.model_type:

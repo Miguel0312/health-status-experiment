@@ -8,6 +8,7 @@ import os.path as path
 import random
 import torch
 import sys
+import numpy as np
 
 if len(sys.argv) < 2:
     print("Usage: python3 main.py experiment1 [experiment2 experiment3 ...]")
@@ -19,20 +20,23 @@ for file_name in sys.argv[1:]:
     )
 
     results = []
+    # TODO: read this from the command line arguments
+    vote_test = False
 
     # TODO: separate the data that can change from one experiment to the other from the one that can't
     for i in range(len(experiment_config.model)):
         random.seed(experiment_config.seed[i])
         torch.manual_seed(experiment_config.seed[i])
+        np.random.seed(experiment_config.seed[i])
 
         print("Reading data file")
 
         data: pd.DataFrame = pd.read_csv(experiment_config.data_file[i])
 
         print("Computing change rates")
-        data = preprocess.computeChangeRates(
-            data, experiment_config.change_rate_interval[i]
-        )
+        # data = preprocess.computeChangeRates(
+        #     data, experiment_config.change_rate_interval[i]
+        # )
 
         # good_hard_drives: pd.DataFrame = data[data["Drive Status"] == 1]
         # bad_hard_drives = data[data["Drive Status"] == -1]
@@ -104,7 +108,10 @@ for file_name in sys.argv[1:]:
         except KeyboardInterrupt:
             pass
         finally:
-            results.append(experiment_config.model[i].failure_result[-1])
+            if not vote_test:
+                results.append(experiment_config.model[i].failure_result[-1])
+            else:
+                break
 
             timestr = time.strftime("%Y_%m_%d-%H_%M_%S.txt")
             with open(path.join("results", timestr), "w") as f:
@@ -119,14 +126,52 @@ for file_name in sys.argv[1:]:
                     )
                 )
                 f.write("\n#\n")
-                # FDR
+                # TIA
                 f.write(
                     ",".join(
                         [str(x[1]) for x in experiment_config.model[i].failure_result]
                     )
                 )
                 f.write("\n#\n")
-    
+                f.write(
+                    ",".join(
+                        [str(x[2]) for x in experiment_config.model[i].failure_result]
+                    )
+                )
+                f.write("\n#\n")
+                f.write(
+                    ",".join(
+                        [str(x[3]) for x in experiment_config.model[i].failure_result]
+                    )
+                )
+                f.write("\n#\n")
+
+    if vote_test:
+        experiment_config.model[0].failure_result = []
+        for i in range(len(experiment_config.model)):
+            # Always use the same model
+            experiment_config.model[0].evaluate(
+                good_test,
+                bad_test,
+                experiment_config.vote_count[i],
+                experiment_config.vote_threshold[i],
+            )
+            results.append(experiment_config.model[0].failure_result[0])
+            experiment_config.model[0].failure_result = []
+
     print("\n-------------Results----------------")
     for result in results:
-        print(f"FAR: {100*result[0]:.3f}%, FDR: {100*result[1]:.3f}%")
+        print(
+            f"FAR: {100*result[0]:.3f}%, FDR: {100*result[1]:.3f}%, TIA: {result[2]:.3f}, TIA Std Dev: {result[3]:.3f}"
+        )
+
+    # TODO: read this from command line arguments
+    attribute = "feature_count"
+
+    print(f"|{attribute}|FAR(%)|FDR(%)|TIA(h)|TIA SD(h)|")
+    print("|-------------|------|------|------|---------|")
+    for idx, result in enumerate(results):
+        val = getattr(experiment_config, attribute)[idx]
+        print(
+            f"|{val}|{100*result[0]:.2f}|{100*result[1]:.2f}|{result[2]:.1f}|{result[3]:.1f}|"
+        )
