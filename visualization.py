@@ -20,7 +20,11 @@ class ExperimentOutput:
     far: list[float] = dataclasses.field(default_factory=list)
 
 
-files = ["results/2025_06_09-12_55_50.txt", "results/2025_06_09-12_57_35.txt", "results/2025_06_09-12_59_21.txt", "results/2025_06_09-13_56_52.txt", "results/2025_06_09-13_58_30.txt", "results/2025_06_09-14_00_09.txt"]
+files = [
+    "results/2025_06_10-11_13_25.txt",
+    "results/2025_06_10-11_09_37.txt",
+    "results/2025_06_10-11_05_51.txt",
+]
 
 x = []
 y = []
@@ -42,6 +46,8 @@ for file in files:
     good_bad_ratio: float = output.config["good_bad_ratio"]
     hidden_nodes: float = output.config["hidden_nodes"]
 
+    indicator = hidden_nodes
+
     loss = list(csv.reader(StringIO(content[1])))[0]
     output.loss = list(map(float, loss))
 
@@ -51,25 +57,16 @@ for file in files:
     far = list(csv.reader(StringIO(content[3])))[0]
     output.far = list(map(lambda x: 100 * float(x), far))
 
-    first = False
+    fdr_results[indicator] = []
+    far_results[indicator] = []
 
-    if hidden_nodes not in fdr_results:
-        fdr_results[hidden_nodes] = []
-        far_results[hidden_nodes] = []
-        first = True
+    plt.plot(output.loss, label=f"{indicator}")
 
-    if first:
-        plt.plot(output.loss, label = f'{hidden_nodes}')
-    # TODO: save the interval when serializing
-    # ax1.plot([100 * (i + 1) for i in range(len(fdr))], output.fdr, color=colors[index], linestyle="", marker="o" ,label=f'{output.config["hidden_nodes"]}')
-    # ax2.plot([100 * (i + 1) for i in range(len(far))], output.far, color=colors[index], linestyle = "", marker="+", label=f'{output.config["hidden_nodes"]}')
+    for idx, x in enumerate(fdr):
+        fdr_results[indicator].append((200 * (idx + 1), 100 * float(x)))
 
-
-    for idx, x in enumerate(fdr[0 : 100 if first else -1]):
-        fdr_results[hidden_nodes].append(((1000 if first else 200) * (idx + 1), 100 * float(x)))
-
-    for idx, x in enumerate(far[0 : 100 if first else -1]):
-        far_results[hidden_nodes].append(((1000 if first else 200) * (idx + 1), 100 * float(x)))
+    for idx, x in enumerate(far):
+        far_results[indicator].append((200 * (idx + 1), 100 * float(x)))
 
     index += 1
     # break
@@ -77,12 +74,13 @@ for file in files:
 plt.title("Evolution of Loss Function for Different Values of Hidden Nodes", pad=12.0)
 plt.xlabel("Round")
 plt.ylabel("Loss")
-plt.legend(title = "Hidden Nodes")
+# plt.legend(title="Good Bad Ratio")
+plt.legend(title="Hidden Nodes")
 
-plt.figure(2)
+plt.savefig("tmp.png")
+
+plt.figure(2, figsize=(10.8, 5.6))
 plt.suptitle("Evolution of FAR and FDR for Different Values of Hidden Nodes")
-
-# plt.yticks([0,1,2,3,4])
 
 plt.subplot(121)
 
@@ -91,12 +89,12 @@ for val in fdr_results:
     x = [u[0] for u in fdr_results[val]]
     y = [u[1] for u in fdr_results[val]]
 
-    plt.plot(x, y, label=f'{val}')
+    plt.plot(x, y, label=f"{val}")
 
-# plt.title("Evolution of FDR for Different Values of Good To Bad Ratio", pad=12.0)
 plt.xlabel("Round")
 plt.ylabel("FDR (%)")
-plt.legend(title = "Hidden Nodes")
+# plt.legend(title="Good Bad Ratio")
+plt.legend(title="Hidden Nodes")
 
 # plt.ylim(97, 99)
 
@@ -107,10 +105,12 @@ for val in far_results:
     x = [u[0] for u in far_results[val]]
     y = [u[1] for u in far_results[val]]
 
-    plt.plot(x, y, label=f'{val}')
+    plt.plot(x, y, label=f"{val}")
 
 plt.xlabel("Round")
 plt.ylabel("FAR (%)")
-plt.legend(title = "Hidden Nodes")
+# plt.legend(title="Good Bad Ratio")
+plt.legend(title="Hidden Nodes", loc="lower right")
 
+plt.savefig("tmp2.png")
 plt.show()

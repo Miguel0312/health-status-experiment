@@ -7,7 +7,7 @@ number_of_failing_samples = 12
 
 [preprocessing]
 change_rate_interval = 1
-feature_count = 19
+feature_count = [3, 5, 8, 10, 12]
 feature_selection_algorithm = "z_score"
 health_status_algorithm = "linear"
 good_bad_ratio = 0.6
@@ -16,14 +16,14 @@ good_bad_ratio = 0.6
 [model]
 model = "BinaryBPNN"
 health_status_count = 2
-hidden_nodes = [15, 30, 60]
-epoch_count = 1000
-learning_rate = 0.1
-evaluate_interval = 200
-lr_decay_interval = 100000
+hidden_nodes = 30
+epoch_count = 1500
+learning_rate = 0.5
+evaluate_interval = 1500
+lr_decay_interval = 1000000
 
 [vote]
-vote_count = 1
+vote_count = 7
 vote_threshold = 0.5
 
 # Specify the loss_fn and the optimizer
