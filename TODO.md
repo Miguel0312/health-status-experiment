@@ -42,19 +42,20 @@
 
 ## Binary RNN:
 
-- [ ] Find standard parameters
-- [ ] Find number of epochs
-- [ ] Vary number of failing samples
-- [ ] Vary Change Rate Interval
-- [ ] Vary Feature Count
+- [x] Find standard parameters
+- [x] Find number of epochs
+- [x] Vary number of failing samples
+- [x] Vary Change Rate Interval
+- [x] Vary Feature Count
 - [ ] Vary Feature Selection Algorithm
-- [ ] Vary Good Bad ratio
-- [ ] Vary Hidden Nodes
-- [ ] Vary Learning Rate
-- [ ] Vary Decay Interval
-- [ ] Vary Vote Count
-- [ ] Vary Vote Threshold
-- [ ] Exclude Change Rate
+- [x] Vary Good Bad ratio
+- [x] Vary Hidden Nodes
+- [x] Vary Learning Rate
+- [ ] ~~Vary Decay Interval~~ (No interesting results)
+- [x] Vary Vote Count
+- [x] Vary Vote Threshold
+- [x] Vary Lookback
+- [x] Exclude Change Rate
 
 
 ## Multilevel RNN:
@@ -73,6 +74,7 @@
 - [ ] Vary Decay Interval
 - [ ] Vary Vote Count
 - [ ] Vary Vote Threshold
+- [ ] Vary Lookback
 - [ ] Exclude Change Rate
 
 ## Binary LSTM:
@@ -89,6 +91,7 @@
 - [ ] Vary Decay Interval
 - [ ] Vary Vote Count
 - [ ] Vary Vote Threshold
+- [ ] Vary Lookback
 - [ ] Exclude Change Rate
 
 
@@ -108,4 +111,5 @@
 - [ ] Vary Decay Interval
 - [ ] Vary Vote Count
 - [ ] Vary Vote Threshold
+- [ ] Vary Lookback
 - [ ] Exclude Change Rate

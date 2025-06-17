@@ -1,0 +1,27 @@
+[dataset]
+seed = 0
+data_file = "data/baidu-dataset.csv"
+number_of_failing_samples = 12
+
+[preprocessing]
+change_rate_interval = 1
+feature_count = 19
+feature_selection_algorithm = "z_score"
+health_status_algorithm = "linear"
+good_bad_ratio = 0.6
+# good_bad_ratio = 17
+
+[model]
+model = "MultiLevelBPNN"
+health_status_count = 4
+hidden_nodes = 30
+epoch_count = 1500
+learning_rate = 0.1
+evaluate_interval = 1500
+lr_decay_interval = 100000
+
+[vote]
+vote_count = 1
+vote_threshold = 0.5
+
+# Specify the loss_fn and the optimizer

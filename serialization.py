@@ -32,6 +32,7 @@ class ExperimentConfig:
     hidden_nodes: list[int] = dataclasses.field(default_factory=list)
     epoch_count: list[int] = dataclasses.field(default_factory=list)
     learning_rate: list[float] = dataclasses.field(default_factory=list)
+    lookback: list[int] = dataclasses.field(default_factory=list)
 
     vote_count: list[int] = dataclasses.field(default_factory=list)
     vote_threshold: list[float] = dataclasses.field(default_factory=list)
@@ -122,6 +123,9 @@ def load_experiment(file_name: str) -> ExperimentConfig:
     config.learning_rate = process_field(
         experiment_description["model"]["learning_rate"], maxi
     )
+    # Lookback is optional
+    if "lookback" in experiment_description["model"]:
+        config.lookback = process_field(experiment_description["model"]["lookback"], maxi)
 
     config.vote_count = process_field(
         experiment_description["vote"]["vote_count"], maxi
@@ -201,6 +205,7 @@ def load_experiment(file_name: str) -> ExperimentConfig:
 
         model.settings.lr_decay_interval = lr_decay[idx]
         model.settings.evaluate_interval = evaluate_interval[idx]
+        model.settings.lookback = config.lookback[idx]
 
     for i in range(maxi):
         # TODO: try with the Adam optimizer

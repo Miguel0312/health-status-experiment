@@ -23,6 +23,7 @@ class ModelSettings:
     input_count: int
     hidden_nodes: int
     output_count: int
+    lookback: int
     evaluate_interval: int = 10
     lr_decay_interval: int = 100
 
@@ -33,6 +34,7 @@ class FailureDetectionNN(nn.Module):
         input_count: int,
         hidden_nodes: int,
         output_count: int,
+        lookback: int = 6,
         evaluate_interval: int = 10,
         lr_decay_interval: int = 100,
     ) -> None:
@@ -41,6 +43,7 @@ class FailureDetectionNN(nn.Module):
             input_count,
             hidden_nodes,
             output_count,
+            lookback,
             evaluate_interval,
             lr_decay_interval,
         )

@@ -6,6 +6,7 @@ def train_test(
     good_hard_drives: pd.DataFrame,
     bad_hard_drives: pd.DataFrame,
     good_bad_ratio: float = 1,
+    temporal: bool = False,
     bad_samples: int = 12
 ) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.DataFrame]:
 
@@ -31,10 +32,17 @@ def train_test(
         set(serial_number_good) - set(serial_number_good_train)
     )
 
-    good_train: pd.DataFrame = good_hard_drives[
-        good_hard_drives["serial-number"].isin(serial_number_good_train)
-    ]
-    good_train = good_train.sample(n = int(good_bad_ratio * len(bad_train)))
+    if temporal:
+        length = len(good_hard_drives[good_hard_drives["serial-number"] == serial_number_good_train[0]])
+        serial_number_good_train = random.sample(serial_number_good_train, k = int(len(bad_train)/length * good_bad_ratio))
+        good_train = good_hard_drives[
+            good_hard_drives["serial-number"].isin(serial_number_good_train)
+        ]
+    else:
+        good_train: pd.DataFrame = good_hard_drives[
+            good_hard_drives["serial-number"].isin(serial_number_good_train)
+        ]
+        good_train = good_train.sample(n = int(good_bad_ratio * len(bad_train)))
     good_test: pd.DataFrame = good_hard_drives[
         good_hard_drives["serial-number"].isin(serial_number_good_test)
     ]

@@ -10,15 +10,14 @@ import torch
 import sys
 import numpy as np
 
+from utils import NNDescription
+
 if len(sys.argv) < 2:
     print("Usage: python3 main.py experiment1 [experiment2 experiment3 ...]")
     exit(0)
 
 attributes = [
-    "health_status_count",
-    "good_bad_ratio",
-    "hidden_nodes",
-    "learning_rate",
+    "feature_count",
 ]
 
 for fileIDX, file_name in enumerate(sys.argv[1:]):
@@ -90,6 +89,7 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
             good_hard_drives,
             bad_hard_drives,
             experiment_config.good_bad_ratio[i],
+            (experiment_config.model[i].description & NNDescription.TEMPORAL) != 0,
             experiment_config.number_of_failing_samples[i],
         )
 
@@ -178,7 +178,10 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
     print(f"|{attribute}|FAR(%)|FDR(%)|TIA(h)|TIA SD(h)|")
     print("|-------------|------|------|------|---------|")
     for idx, result in enumerate(results):
-        val = getattr(experiment_config, attribute)[idx]
+        try:
+            val = getattr(experiment_config, attribute)[idx]
+        except:
+            val = getattr(experiment_config.model[idx].settings, attribute)
         print(
             f"|{val}|{100*result[0]:.2f}|{100*result[1]:.2f}|{result[2]:.1f}|{result[3]:.1f}|"
         )

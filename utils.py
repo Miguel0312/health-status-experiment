@@ -190,7 +190,6 @@ def _train_temporal(
     voteCount: int,
 ) -> None:
     serialNumbers: npt.NDArray[np.int64] = train_x["serial-number"].unique()
-
     if model.description & NNDescription.BINARY:
         y: torch.Tensor = torch.tensor(train_y.values, dtype=torch.float32)
     elif model.description & NNDescription.MULTILEVEL:
@@ -199,27 +198,32 @@ def _train_temporal(
     batches: list[torch.Tensor] = []
     answer: list[torch.types.Number] = []
     index: int = 0
-    lookback: int = voteCount
+    lookback: int = model.settings.lookback
 
     # TODO: test a voting algorithm in which the first sample has weight 1, the second 2, etc.
     # Since there is more lookback for the later samples, there is a higher chance this is correct
     for serialNumber in serialNumbers:
         hd_data: pd.DataFrame = train_x[train_x["serial-number"] == serialNumber]
         hd_data = hd_data.drop(["serial-number"], axis=1)
-        hd_data_tensor = torch.Tensor(hd_data, torch.float64)
+        hd_data_tensor = torch.tensor(hd_data.values, dtype=torch.float32)
         i: int = len(hd_data) - lookback - 1
-        batches.append(hd_data_tensor[i : i + lookback])
-        answer.append(y[index + i + 1 : index + lookback + i + 1].item())
+        batch = hd_data_tensor[i : i + lookback]
+        if len(batch) == lookback:  
+            batches.append(batch)
+            answer.append(y[index + i + 1 : index + lookback + i + 1])
+            # print(len(batches[-1]))
+            # print(batches[-1])
+            # exit(0)
 
         index += len(hd_data)
 
     # Need to shuffle the batches because backpropagation is done after each batch
     # There may be errors if the model is trained with a long sequence of samples with the same output
     # TODO: maybe try to equally space the outputs
-    permutation: list[int] = list(range(len(batches)))
-    random.shuffle(permutation)
-    batches = [batches[permutation[i]] for i in range(len(batches))]
-    answer = [answer[permutation[i]] for i in range(len(answer))]
+    # permutation: list[int] = list(range(len(batches)))
+    # random.shuffle(permutation)
+    # batches = [batches[permutation[i]] for i in range(len(batches))]
+    # answer = [answer[permutation[i]] for i in range(len(answer))]
 
     for epoch in range(epochs):
         model.zero_grad()
@@ -227,24 +231,26 @@ def _train_temporal(
 
         current_loss: float = 0
         for idx, batch in enumerate(batches):
+            # print(batch, len(batch))
             output: torch.Tensor = model(batch).squeeze()
 
             loss: torch.Tensor = loss_fn(output, answer[idx])
             current_loss += loss.item()
 
             loss.backward()
-            nn.utils.clip_grad_norm_(model.parameters(), 3)
+            # nn.utils.clip_grad_norm_(model.parameters(), 3)
             optimizer.step()
             optimizer.zero_grad()
 
         current_loss /= len(batches)
-        model.loss.append(loss.item())
+        model.loss.append(current_loss)
 
         print(f"Epoch [{epoch+1}/{epochs}], Loss: {current_loss:.4f}")
-        if (epoch + 1) % 10 == 0:
-            model.evaluate(test_good, test_bad, voteCount)
-        if (epoch + 1) % 100 == 0:
+        if (epoch + 1) % model.settings.lr_decay_interval == 0:
             optimizer.param_groups[0]["lr"] = optimizer.param_groups[0]["lr"] / 2
+            # print(optimizer.param_groups[0]["lr"])
+        if (epoch + 1) % model.settings.evaluate_interval == 0:
+            model.evaluate(test_good, test_bad, voteCount)
 
 
 def _vote_binary(
