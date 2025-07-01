@@ -3,14 +3,16 @@ import dataclasses
 import toml
 from featureSelection import FeatureSelectionAlgorithm
 from preprocess import HealthStatusAlgorithm
-import bpnn
+import neuralNetworks
 import torch
 
 
 @dataclass
 class ExperimentConfig:
-    model_type: bpnn.Model = bpnn.Model.Undefined
-    model: list[bpnn.FailureDetectionNN] = dataclasses.field(default_factory=list)
+    model_type: neuralNetworks.Model = neuralNetworks.Model.Undefined
+    model: list[neuralNetworks.FailureDetectionNN] = dataclasses.field(
+        default_factory=list
+    )
     optimizer: list[torch.optim.Optimizer] = dataclasses.field(default_factory=list)
     loss_fn: list[torch.nn.Module] = dataclasses.field(default_factory=list)
 
@@ -125,7 +127,9 @@ def load_experiment(file_name: str) -> ExperimentConfig:
     )
     # Lookback is optional
     if "lookback" in experiment_description["model"]:
-        config.lookback = process_field(experiment_description["model"]["lookback"], maxi)
+        config.lookback = process_field(
+            experiment_description["model"]["lookback"], maxi
+        )
 
     config.vote_count = process_field(
         experiment_description["vote"]["vote_count"], maxi
@@ -134,41 +138,47 @@ def load_experiment(file_name: str) -> ExperimentConfig:
         experiment_description["vote"]["vote_threshold"], maxi
     )
 
-    config.model_type = bpnn.Model[experiment_description["model"]["model"]]
+    config.model_type = neuralNetworks.Model[experiment_description["model"]["model"]]
 
     for i in range(maxi):
         match config.model_type:
-            case bpnn.Model.BinaryBPNN:
+            case neuralNetworks.Model.BinaryBPNN:
                 config.model.append(
-                    bpnn.BinaryBPNN(config.feature_count[i], config.hidden_nodes[i])
+                    neuralNetworks.BinaryBPNN(
+                        config.feature_count[i], config.hidden_nodes[i]
+                    )
                 )
-            case bpnn.Model.MultiLevelBPNN:
+            case neuralNetworks.Model.MultiLevelBPNN:
                 config.model.append(
-                    bpnn.MultiLevelBPNN(
+                    neuralNetworks.MultiLevelBPNN(
                         config.feature_count[i],
                         config.hidden_nodes[i],
                         config.health_status_count[i],
                     )
                 )
-            case bpnn.Model.BinaryRNN:
+            case neuralNetworks.Model.BinaryRNN:
                 config.model.append(
-                    bpnn.BinaryRNN(config.feature_count[i], config.hidden_nodes[i])
+                    neuralNetworks.BinaryRNN(
+                        config.feature_count[i], config.hidden_nodes[i]
+                    )
                 )
-            case bpnn.Model.MultiLevelRNN:
+            case neuralNetworks.Model.MultiLevelRNN:
                 config.model.append(
-                    bpnn.MultiLevelRNN(
+                    neuralNetworks.MultiLevelRNN(
                         config.feature_count[i],
                         config.hidden_nodes[i],
                         config.health_status_count[i],
                     )
                 )
-            case bpnn.Model.BinaryLSTM:
+            case neuralNetworks.Model.BinaryLSTM:
                 config.model.append(
-                    bpnn.BinaryLSTM(config.feature_count[i], config.hidden_nodes[i])
+                    neuralNetworks.BinaryLSTM(
+                        config.feature_count[i], config.hidden_nodes[i]
+                    )
                 )
-            case bpnn.Model.MultiLevelLSTM:
+            case neuralNetworks.Model.MultiLevelLSTM:
                 config.model.append(
-                    bpnn.MultiLevelLSTM(
+                    neuralNetworks.MultiLevelLSTM(
                         config.feature_count[i],
                         config.hidden_nodes[i],
                         config.health_status_count[i],
@@ -190,14 +200,14 @@ def load_experiment(file_name: str) -> ExperimentConfig:
             )
 
         if (
-            model.description & bpnn.NNDescription.BINARY
+            model.description & neuralNetworks.NNDescription.BINARY
         ) and config.health_status_count[idx] != 2:
             raise ValueError(
                 "When training a binary model, the number of classes must be equal to 2"
             )
 
         if (
-            model.description & bpnn.NNDescription.MULTILEVEL
+            model.description & neuralNetworks.NNDescription.MULTILEVEL
         ) and config.health_status_count[idx] < 3:
             raise ValueError(
                 "When training a multi level model, the number of classes must be at least 3"
@@ -217,7 +227,7 @@ def load_experiment(file_name: str) -> ExperimentConfig:
             )
         )
 
-    if config.model[0].description & bpnn.NNDescription.BINARY:
+    if config.model[0].description & neuralNetworks.NNDescription.BINARY:
         config.loss_fn = [torch.nn.BCELoss()] * maxi
     else:
         config.loss_fn = [torch.nn.CrossEntropyLoss()] * maxi

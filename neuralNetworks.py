@@ -19,7 +19,7 @@ class Model(Enum):
 
 
 @dataclass
-class ModelSettings:
+class NeuralNetworkSettings:
     input_count: int
     hidden_nodes: int
     output_count: int
@@ -28,7 +28,11 @@ class ModelSettings:
     lr_decay_interval: int = 100
 
 
-class FailureDetectionNN(nn.Module):
+class FailureDetectionModel:
+    pass
+
+
+class FailureDetectionNN(nn.Module, FailureDetectionModel):
     def __init__(
         self,
         input_count: int,
@@ -38,8 +42,9 @@ class FailureDetectionNN(nn.Module):
         evaluate_interval: int = 10,
         lr_decay_interval: int = 100,
     ) -> None:
-        super(FailureDetectionNN, self).__init__()
-        self.settings = ModelSettings(
+        nn.Module.__init__(self)
+        FailureDetectionModel.__init__(self)
+        self.settings = NeuralNetworkSettings(
             input_count,
             hidden_nodes,
             output_count,

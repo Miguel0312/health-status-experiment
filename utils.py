@@ -9,7 +9,7 @@ import numpy.typing as npt
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bpnn import FailureDetectionNN
+    from neuralNetworks import FailureDetectionNN
 
 
 class NNDescription(IntFlag):
@@ -208,7 +208,7 @@ def _train_temporal(
         hd_data_tensor = torch.tensor(hd_data.values, dtype=torch.float32)
         i: int = len(hd_data) - lookback - 1
         batch = hd_data_tensor[i : i + lookback]
-        if len(batch) == lookback:  
+        if len(batch) == lookback:
             batches.append(batch)
             answer.append(y[index + i + 1 : index + lookback + i + 1])
             # print(len(batches[-1]))

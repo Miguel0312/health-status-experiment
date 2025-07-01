@@ -5,10 +5,6 @@ import csv
 from dataclasses import dataclass
 import dataclasses
 import matplotlib.pyplot as plt
-import matplotlib
-import matplotlib.rcsetup
-
-# matplotlib.use("webagg")
 
 
 @dataclass
@@ -21,10 +17,10 @@ class ExperimentOutput:
 
 
 files = [
-    "results/2025_06_16-10_42_04.txt",
-    "results/2025_06_16-10_49_56.txt",
-    "results/2025_06_16-10_58_45.txt",
-    "results/2025_06_16-11_08_29.txt",
+    "results/2025_06_27-11_16_48.txt",
+    "results/2025_06_27-11_27_14.txt",
+    "results/2025_06_27-11_37_51.txt",
+    "results/2025_06_27-11_48_16.txt",
 ]
 
 x = []
@@ -47,7 +43,7 @@ for file in files:
     good_bad_ratio: float = output.config["good_bad_ratio"]
     hidden_nodes: float = output.config["hidden_nodes"]
 
-    indicator = good_bad_ratio
+    indicator = hidden_nodes
 
     loss = list(csv.reader(StringIO(content[1])))[0]
     output.loss = list(map(float, loss))
@@ -94,8 +90,8 @@ for val in fdr_results:
 
 plt.xlabel("Round")
 plt.ylabel("FDR (%)")
-plt.legend(title="Good Bad Ratio")
-# plt.legend(title="Hidden Nodes")
+# plt.legend(title="Good Bad Ratio")
+plt.legend(title="Hidden Nodes")
 
 # plt.ylim(97, 99)
 
@@ -110,8 +106,8 @@ for val in far_results:
 
 plt.xlabel("Round")
 plt.ylabel("FAR (%)")
-plt.legend(title="Good Bad Ratio")
-# plt.legend(title="Hidden Nodes", loc="lower right")
+# plt.legend(title="Good Bad Ratio")
+plt.legend(title="Hidden Nodes")
 
 plt.savefig("tmp2.png")
 plt.show()

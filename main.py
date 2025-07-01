@@ -16,9 +16,12 @@ if len(sys.argv) < 2:
     print("Usage: python3 main.py experiment1 [experiment2 experiment3 ...]")
     exit(0)
 
-attributes = [
-    "feature_count",
-]
+# TODO: read this from the command line arguments or from the config file
+vote_test = False
+compute_change_rates = False
+
+# TODO: deduce this from the config files
+attributes = ["feature_count", "vote_threshold"]
 
 for fileIDX, file_name in enumerate(sys.argv[1:]):
     experiment_config: serialization.ExperimentConfig = serialization.load_experiment(
@@ -26,10 +29,7 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
     )
 
     results = []
-    # TODO: read this from the command line arguments
-    vote_test = False
 
-    # TODO: separate the data that can change from one experiment to the other from the one that can't
     for i in range(len(experiment_config.model)):
         random.seed(experiment_config.seed[i])
         torch.manual_seed(experiment_config.seed[i])
@@ -39,10 +39,11 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
 
         data: pd.DataFrame = pd.read_csv(experiment_config.data_file[i])
 
-        # print("Computing change rates")
-        data = preprocess.computeChangeRates(
-            data, experiment_config.change_rate_interval[i]
-        )
+        if compute_change_rates:
+            # print("Computing change rates")
+            data = preprocess.computeChangeRates(
+                data, experiment_config.change_rate_interval[i]
+            )
 
         # good_hard_drives: pd.DataFrame = data[data["Drive Status"] == 1]
         # bad_hard_drives = data[data["Drive Status"] == -1]
@@ -62,6 +63,7 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
             featureSelection.FeatureSelectionAlgorithm.Z_SCORE,
             experiment_config.feature_count[i],
         )
+        assert len(list(data.columns)[2:]) == experiment_config.feature_count[i]
         # print(f"Features kept: {str(list(data.columns)[2:])}")
 
         # print(
@@ -101,7 +103,6 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
         # print("Training the AI model")
 
         try:
-            # TODO: pass the threshold here
             experiment_config.model[i].train_model(
                 experiment_config.epoch_count[i],
                 X_train,
@@ -115,10 +116,7 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
         except KeyboardInterrupt:
             pass
         finally:
-            if not vote_test:
-                results.append(experiment_config.model[i].failure_result[-1])
-            else:
-                break
+            results.append(experiment_config.model[i].failure_result[-1])
 
             timestr = time.strftime("%Y_%m_%d-%H_%M_%S.txt")
             with open(path.join("results", timestr), "w") as f:
@@ -153,9 +151,14 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
                 )
                 f.write("\n#\n")
 
+            # If it is a vote_test, we train only one model
+            if vote_test:
+                break
+
     if vote_test:
         experiment_config.model[0].failure_result = []
-        for i in range(len(experiment_config.model)):
+        # Evaluate the same model with the other voting parameters
+        for i in range(1, len(experiment_config.model)):
             # Always use the same model
             experiment_config.model[0].evaluate(
                 good_test,
@@ -172,7 +175,6 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
             f"FAR: {100*result[0]:.3f}%, FDR: {100*result[1]:.3f}%, TIA: {result[2]:.3f}, TIA Std Dev: {result[3]:.3f}"
         )
 
-    # TODO: read this from command line arguments
     attribute = attributes[fileIDX]
 
     print(f"|{attribute}|FAR(%)|FDR(%)|TIA(h)|TIA SD(h)|")
@@ -180,7 +182,8 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
     for idx, result in enumerate(results):
         try:
             val = getattr(experiment_config, attribute)[idx]
-        except:
+        except Exception:
+            # If the attribute was not found on the config, search on the model object directly
             val = getattr(experiment_config.model[idx].settings, attribute)
         print(
             f"|{val}|{100*result[0]:.2f}|{100*result[1]:.2f}|{result[2]:.1f}|{result[3]:.1f}|"
