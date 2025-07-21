@@ -6,6 +6,7 @@ import pandas as pd
 import torch.optim as optim
 import torch
 from enum import Enum
+from modelBase import FailureDetectionModel
 
 
 class Model(Enum):
@@ -26,10 +27,6 @@ class NeuralNetworkSettings:
     lookback: int
     evaluate_interval: int = 10
     lr_decay_interval: int = 100
-
-
-class FailureDetectionModel:
-    pass
 
 
 class FailureDetectionNN(nn.Module, FailureDetectionModel):
@@ -55,7 +52,7 @@ class FailureDetectionNN(nn.Module, FailureDetectionModel):
         self.description: NNDescription = NNDescription(0)
         self.net: nn.Module
         self.loss: list[float] = []
-        self.failure_result: list[tuple[float, float]] = []
+        
 
     def train_model(
         self,
@@ -68,7 +65,7 @@ class FailureDetectionNN(nn.Module, FailureDetectionModel):
         optimizer: optim.Optimizer,
         voteCount: int,
     ):
-        utils.train(
+        utils.trainNN(
             self,
             epochs,
             train_x,

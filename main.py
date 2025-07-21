@@ -1,6 +1,7 @@
 import pandas as pd
 import dataSelection
 import featureSelection
+import modelBase
 import preprocess
 import serialization
 import time
@@ -18,10 +19,17 @@ if len(sys.argv) < 2:
 
 # TODO: read this from the command line arguments or from the config file
 vote_test = False
-compute_change_rates = False
+compute_change_rates = True
 
 # TODO: deduce this from the config files
-attributes = ["feature_count", "vote_threshold"]
+attributes = [
+    "feature_count",
+    "vote_threshold",
+    "feature_count",
+    "good_bad_ratio",
+    "max_depth",
+    "min_samples_leaf",
+]
 
 for fileIDX, file_name in enumerate(sys.argv[1:]):
     experiment_config: serialization.ExperimentConfig = serialization.load_experiment(
@@ -45,30 +53,13 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
                 data, experiment_config.change_rate_interval[i]
             )
 
-        # good_hard_drives: pd.DataFrame = data[data["Drive Status"] == 1]
-        # bad_hard_drives = data[data["Drive Status"] == -1]
-        # bad_hard_drives: pd.DataFrame = preprocess.getLastSamples(
-        #     data[data["Drive Status"] == -1],
-        #     experiment_config.number_of_failing_samples[i],
-        # )
-
-        # data = pd.concat([bad_hard_drives, good_hard_drives])
-
         # TODO: check if the features change a lot when CHANGE_RATE_INTERVAL and NUMBER_OF_SAMPLES change
-        # print(
-        #     f"Selecting {experiment_config.feature_count[i]} features using the {experiment_config.feature_selection_algorithm[i].name} algorithm"
-        # )
         data = featureSelection.selectFeatures(
             data,
             featureSelection.FeatureSelectionAlgorithm.Z_SCORE,
             experiment_config.feature_count[i],
         )
         assert len(list(data.columns)[2:]) == experiment_config.feature_count[i]
-        # print(f"Features kept: {str(list(data.columns)[2:])}")
-
-        # print(
-        #     f"Adding Health Status Values using {experiment_config.health_status_algorithm[i].name} algorithm"
-        # )
 
         good_hard_drives: pd.DataFrame = data[data["Drive Status"] == 1]
         bad_hard_drives: pd.DataFrame = data[data["Drive Status"] == -1]
@@ -91,7 +82,11 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
             good_hard_drives,
             bad_hard_drives,
             experiment_config.good_bad_ratio[i],
-            (experiment_config.model[i].description & NNDescription.TEMPORAL) != 0,
+            (
+                experiment_config.model_type == modelBase.ModelType.NN
+                and experiment_config.model[i].description & NNDescription.TEMPORAL
+            )
+            != 0,
             experiment_config.number_of_failing_samples[i],
         )
 
@@ -103,16 +98,28 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
         # print("Training the AI model")
 
         try:
-            experiment_config.model[i].train_model(
-                experiment_config.epoch_count[i],
-                X_train,
-                y_train,
-                good_test,
-                bad_test,
-                experiment_config.loss_fn[i],
-                experiment_config.optimizer[i],
-                experiment_config.vote_count[i],
-            )
+            match experiment_config.model_type:
+                case modelBase.ModelType.NN:
+                    experiment_config.model[i].train_model(
+                        experiment_config.epoch_count[i],
+                        X_train,
+                        y_train,
+                        good_test,
+                        bad_test,
+                        experiment_config.loss_fn[i],
+                        experiment_config.optimizer[i],
+                        experiment_config.vote_count[i],
+                    )
+                case modelBase.ModelType.TREE:
+                    experiment_config.model[i].train_model(
+                        X_train,
+                        y_train,
+                        good_test,
+                        bad_test,
+                        experiment_config.vote_count[i],
+                    )
+                case _:
+                    raise ValueError("Invalid Value of model_type")
         except KeyboardInterrupt:
             pass
         finally:
@@ -122,7 +129,8 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
             with open(path.join("results", timestr), "w") as f:
                 f.write(experiment_config.print_experiment(i))
                 f.write("\n#\n")
-                f.write(",".join(map(str, experiment_config.model[i].loss)))
+                if experiment_config.model_type == modelBase.ModelType.NN:
+                    f.write(",".join(map(str, experiment_config.model[i].loss)))
                 f.write("\n#\n")
                 # FAR
                 f.write(

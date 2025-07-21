@@ -2,7 +2,6 @@ from enum import IntFlag, auto
 import torch
 import numpy as np
 import torch.nn as nn
-import random
 import pandas as pd
 import numpy.typing as npt
 
@@ -16,13 +15,13 @@ class NNDescription(IntFlag):
     BINARY = auto()
     MULTILEVEL = auto()
     TEMPORAL = auto()
-    UNIQUE = auto()
+    UNIQUE = auto()  # Takes only one sample at each step, in contrast to a temporal model which takes a sequence
     LSTM = auto()
     RNN = auto()
     BP = auto()
 
 
-def train(
+def trainNN(
     model: "FailureDetectionNN",
     epochs: int,
     train_x: pd.DataFrame,

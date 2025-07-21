@@ -4,17 +4,17 @@ import toml
 from featureSelection import FeatureSelectionAlgorithm
 from preprocess import HealthStatusAlgorithm
 import neuralNetworks
+import decisionTrees
 import torch
+import modelBase
 
 
 @dataclass
 class ExperimentConfig:
-    model_type: neuralNetworks.Model = neuralNetworks.Model.Undefined
-    model: list[neuralNetworks.FailureDetectionNN] = dataclasses.field(
+    model_type: modelBase.ModelType = modelBase.ModelType.UNDEFINED
+    model: list[modelBase.FailureDetectionModel] = dataclasses.field(
         default_factory=list
     )
-    optimizer: list[torch.optim.Optimizer] = dataclasses.field(default_factory=list)
-    loss_fn: list[torch.nn.Module] = dataclasses.field(default_factory=list)
 
     seed: list[int] = dataclasses.field(default_factory=list)
     data_file: list[str] = dataclasses.field(default_factory=list)
@@ -31,10 +31,6 @@ class ExperimentConfig:
     good_bad_ratio: float = dataclasses.field(default_factory=list)
 
     health_status_count: list[int] = dataclasses.field(default_factory=list)
-    hidden_nodes: list[int] = dataclasses.field(default_factory=list)
-    epoch_count: list[int] = dataclasses.field(default_factory=list)
-    learning_rate: list[float] = dataclasses.field(default_factory=list)
-    lookback: list[int] = dataclasses.field(default_factory=list)
 
     vote_count: list[int] = dataclasses.field(default_factory=list)
     vote_threshold: list[float] = dataclasses.field(default_factory=list)
@@ -48,7 +44,8 @@ class ExperimentConfig:
 
             attr = getattr(self, field.name)
             if type(getattr(self, field.name)) is list:
-                attr = attr[i]
+                if i < len(attr):
+                    attr = attr[i]
             if type(attr) is not int and type(attr) is not float:
                 attr = '"' + str(attr) + '"'
 
@@ -57,6 +54,28 @@ class ExperimentConfig:
         res += "}"
 
         return res
+
+
+@dataclass
+class NeuralNetworkConfig(ExperimentConfig):
+    model_type: modelBase.ModelType = modelBase.ModelType.NN
+    nn_type: neuralNetworks.Model = neuralNetworks.Model.Undefined
+    optimizer: list[torch.optim.Optimizer] = dataclasses.field(default_factory=list)
+    loss_fn: list[torch.nn.Module] = dataclasses.field(default_factory=list)
+    hidden_nodes: list[int] = dataclasses.field(default_factory=list)
+    epoch_count: list[int] = dataclasses.field(default_factory=list)
+    learning_rate: list[float] = dataclasses.field(default_factory=list)
+    lookback: list[int] = dataclasses.field(default_factory=list)
+
+
+class DecisionTreeConfig(ExperimentConfig):
+    model_type: modelBase.ModelType = modelBase.ModelType.TREE
+    tree_type: decisionTrees.TreeType = decisionTrees.TreeType.UNDEFINED
+    criterion: list[decisionTrees.TreeCriterion] = dataclasses.field(
+        default_factory=list
+    )
+    max_depth: list[int] = dataclasses.field(default_factory=list)
+    min_samples_leaf: list[int] = dataclasses.field(default_factory=list)
 
 
 def process_field(field, length):
@@ -72,13 +91,23 @@ def load_experiment(file_name: str) -> ExperimentConfig:
     with open(file_name, "r") as f:
         experiment_description = toml.load(f)
 
+    model_type = modelBase.ModelType[experiment_description["model"]["model_type"]]
+
+    match model_type:
+        case modelBase.ModelType.NN:
+            return _load_neural_network(experiment_description)
+        case modelBase.ModelType.TREE:
+            return _load_tree(experiment_description)
+        case _:
+            raise ValueError("No valid value of field model.model_type")
+
+
+def _load_base(config, experiment_description):
     maxi = 1
     for table in experiment_description.values():
         for field in table.values():
             if type(field) is list:
                 maxi = max(maxi, len(field))
-
-    config: ExperimentConfig = ExperimentConfig()
 
     config.seed = process_field(experiment_description["dataset"]["seed"], maxi)
     config.data_file = process_field(
@@ -116,6 +145,22 @@ def load_experiment(file_name: str) -> ExperimentConfig:
     config.health_status_count = process_field(
         experiment_description["model"]["health_status_count"], maxi
     )
+
+    config.vote_count = process_field(
+        experiment_description["vote"]["vote_count"], maxi
+    )
+    config.vote_threshold = process_field(
+        experiment_description["vote"]["vote_threshold"], maxi
+    )
+
+    return maxi
+
+
+def _load_neural_network(experiment_description):
+    config = NeuralNetworkConfig()
+
+    maxi = _load_base(config, experiment_description)
+
     config.hidden_nodes = process_field(
         experiment_description["model"]["hidden_nodes"], maxi
     )
@@ -125,23 +170,16 @@ def load_experiment(file_name: str) -> ExperimentConfig:
     config.learning_rate = process_field(
         experiment_description["model"]["learning_rate"], maxi
     )
-    # Lookback is optional
+    # TODO: if the model is temporal, then it needs a lookback
     if "lookback" in experiment_description["model"]:
         config.lookback = process_field(
             experiment_description["model"]["lookback"], maxi
         )
 
-    config.vote_count = process_field(
-        experiment_description["vote"]["vote_count"], maxi
-    )
-    config.vote_threshold = process_field(
-        experiment_description["vote"]["vote_threshold"], maxi
-    )
-
-    config.model_type = neuralNetworks.Model[experiment_description["model"]["model"]]
+    config.nn_type = neuralNetworks.Model[experiment_description["model"]["model"]]
 
     for i in range(maxi):
-        match config.model_type:
+        match config.nn_type:
             case neuralNetworks.Model.BinaryBPNN:
                 config.model.append(
                     neuralNetworks.BinaryBPNN(
@@ -184,9 +222,10 @@ def load_experiment(file_name: str) -> ExperimentConfig:
                         config.health_status_count[i],
                     )
                 )
-
-    if not config.model:
-        raise ValueError("Invalid model type")
+            case _:
+                raise ValueError(
+                    "Value of field model.model doesn't match any neural network architecture"
+                )
 
     lr_decay = process_field(experiment_description["model"]["lr_decay_interval"], maxi)
     evaluate_interval = process_field(
@@ -196,7 +235,7 @@ def load_experiment(file_name: str) -> ExperimentConfig:
     for idx, model in enumerate(config.model):
         if not model.validateDescription():
             raise ValueError(
-                "It is not possible to create a odel with the given parameters"
+                "It is not possible to create a model with the given parameters"
             )
 
         if (
@@ -215,7 +254,8 @@ def load_experiment(file_name: str) -> ExperimentConfig:
 
         model.settings.lr_decay_interval = lr_decay[idx]
         model.settings.evaluate_interval = evaluate_interval[idx]
-        model.settings.lookback = config.lookback[idx]
+        if model.description & neuralNetworks.NNDescription.TEMPORAL:
+            model.settings.lookback = config.lookback[idx]
 
     for i in range(maxi):
         # TODO: try with the Adam optimizer
@@ -227,9 +267,56 @@ def load_experiment(file_name: str) -> ExperimentConfig:
             )
         )
 
+    # TODO: adapth this when there are models of different types
     if config.model[0].description & neuralNetworks.NNDescription.BINARY:
         config.loss_fn = [torch.nn.BCELoss()] * maxi
     else:
         config.loss_fn = [torch.nn.CrossEntropyLoss()] * maxi
+
+    return config
+
+
+def _load_tree(experiment_description):
+    config = DecisionTreeConfig()
+
+    maxi = _load_base(config, experiment_description)
+
+    if type(experiment_description["model"]["criterion"]) is list:
+        config.criterion = process_field(
+            [x.upper() for x in experiment_description["model"]["criterion"]],
+            maxi,
+        )
+    else:
+        config.criterion = process_field(
+            decisionTrees.TreeCriterion[
+                experiment_description["model"]["criterion"].upper()
+            ],
+            maxi,
+        )
+
+    config.max_depth = process_field(experiment_description["model"]["max_depth"], maxi)
+    config.min_samples_leaf = process_field(
+        experiment_description["model"]["min_samples_leaf"], maxi
+    )
+
+    config.tree_type = decisionTrees.TreeType[
+        experiment_description["model"]["tree_type"]
+    ]
+
+    for i in range(maxi):
+        if config.tree_type == decisionTrees.TreeType.CLASSIFICATION:
+            config.model.append(
+                decisionTrees.ClassificationTree(
+                    config.criterion[i], config.max_depth[i], config.min_samples_leaf[i]
+                )
+            )
+        elif config.tree_type == decisionTrees.TreeType.REGRESSION:
+            config.model.append(
+                decisionTrees.RegressionTree(
+                    config.criterion[i], config.max_depth[i], config.min_samples_leaf[i]
+                )
+            )
+        else:
+            raise ValueError("Value of tree_type is invalid")
 
     return config
