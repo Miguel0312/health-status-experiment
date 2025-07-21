@@ -49,13 +49,20 @@ def getLastSamples(df: pd.DataFrame, N: int) -> pd.DataFrame:
 
 class HealthStatusAlgorithm(Enum):
     LINEAR = 1
+    NON_SATURATED = 2
 
 
-def LinearAlgorithm(mini: int, maxi: int, i: int, n: int) -> int:
+def LinearAlgorithm(good: bool, mini: int, maxi: int, i: int, n: int) -> int:
     """
     Linearly map the values [0,n-1] to [maxi, mini]
     """
+    if good:
+        return maxi + 1
     return maxi - math.floor((maxi - (mini - 1)) * i / n)
+
+
+def NonSaturatedAlgorithm(good: bool, mini: int, maxi: int, i: int, n: int) -> float:
+    return 0.9 if good else 0.1
 
 
 def addHealthStatus(
@@ -66,21 +73,21 @@ def addHealthStatus(
     If good is set, it is always equal to maxLevel
     Else the algorithm is used to give a score in [0,maxLevel-1]
     """
-    if good:
-        df = df.assign(**{"Health Status": [maxLevel for i in range(len(df))]})
-        return df
 
-    func: Callable[[int, int, int, int], int] | None = None
+    func: Callable[[bool, int, int, int, int], int] | None = None
 
     match algorithm:
         case HealthStatusAlgorithm.LINEAR:
             func = LinearAlgorithm
+        case HealthStatusAlgorithm.NON_SATURATED:
+            assert maxLevel == 1
+            func = NonSaturatedAlgorithm
 
     serialNumbers: npt.NDArray[np.int32] = df["serial-number"].unique()
     healthStatusValues: list[int] = []
     for serialNumber in serialNumbers:
         cnt: int = len(df[df["serial-number"] == serialNumber])
-        newValues: list[int] = [func(0, maxLevel - 1, i, cnt) for i in range(cnt)]
+        newValues: list[int] = [func(good, 0, maxLevel - 1, i, cnt) for i in range(cnt)]
         healthStatusValues = healthStatusValues + newValues
 
     df = df.assign(**{"Health Status": healthStatusValues})
