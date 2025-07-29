@@ -7,6 +7,7 @@ import neuralNetworks
 import decisionTrees
 import torch
 import modelBase
+import utils
 
 
 @dataclass
@@ -34,6 +35,9 @@ class ExperimentConfig:
 
     vote_count: list[int] = dataclasses.field(default_factory=list)
     vote_threshold: list[float] = dataclasses.field(default_factory=list)
+    voting_algorithm: list[utils.VotingAlgorithm] = dataclasses.field(
+        default_factory=list
+    )
 
     def print_experiment(self, i) -> str:
         res: str = "{"
@@ -102,7 +106,7 @@ def load_experiment(file_name: str) -> ExperimentConfig:
             raise ValueError("No valid value of field model.model_type")
 
 
-def _load_base(config, experiment_description):
+def _load_base(config: ExperimentConfig, experiment_description):
     maxi = 1
     for table in experiment_description.values():
         for field in table.values():
@@ -152,6 +156,24 @@ def _load_base(config, experiment_description):
     config.vote_threshold = process_field(
         experiment_description["vote"]["vote_threshold"], maxi
     )
+
+    if "voting_algorithm" not in experiment_description["vote"]:
+        config.voting_algorithm = [utils.VotingAlgorithm.STANDARD] * maxi
+    elif type(experiment_description["vote"]["voting_algorithm"]) is list:
+        config.voting_algorithm = process_field(
+            [
+                utils.VotingAlgorithm[x.upper()]
+                for x in experiment_description["vote"]["voting_algorithm"]
+            ],
+            maxi,
+        )
+    else:
+        config.voting_algorithm = process_field(
+            utils.VotingAlgorithm[
+                experiment_description["vote"]["voting_algorithm"].upper()
+            ],
+            maxi,
+        )
 
     return maxi
 

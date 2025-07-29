@@ -4,6 +4,7 @@ import numpy as np
 import torch.nn as nn
 import pandas as pd
 import numpy.typing as npt
+from enum import Enum
 
 from typing import TYPE_CHECKING
 
@@ -58,18 +59,28 @@ def trainNN(
         )
 
 
+class VotingAlgorithm(Enum):
+    STANDARD = 1
+    VAT2H = 2
+
+
 def evaluate(
     model: "FailureDetectionNN",
     data_good: pd.DataFrame,
     data_bad: pd.DataFrame,
     voteCount: int,
     ratio: float = 0.5,
+    voting_algorithm=VotingAlgorithm.STANDARD,
 ) -> None:
     model.eval()
 
-    (far, _, _) = _evaluate_group(model, data_good, voteCount, ratio, 1)
+    (far, _, _) = _evaluate_group(
+        model, data_good, voteCount, ratio, 1, voting_algorithm
+    )
     far = 1 - far
-    (fdr, tia, stdDev) = _evaluate_group(model, data_bad, voteCount, ratio, 0, True)
+    (fdr, tia, stdDev) = _evaluate_group(
+        model, data_bad, voteCount, ratio, 0, voting_algorithm
+    )
     model.failure_result.append((far, fdr, tia, stdDev))
 
     print(
@@ -84,7 +95,7 @@ def _evaluate_group(
     voteCount: int,
     ratio: float,
     target: int,
-    verbose: bool = False,
+    voting_algorithm: VotingAlgorithm,
 ) -> float:
     with torch.no_grad():
         serialNumbers: npt.NDArray[np.int64] = data["serial-number"].unique()
@@ -110,7 +121,7 @@ def _evaluate_group(
 
             for i in range(0, len(X_test) - voteCount):
                 candidates = X_test[i : i + voteCount]
-                pred = _vote(model, candidates, ratio)
+                pred = _vote(model, candidates, ratio, voting_algorithm)
                 # if first:
                 #     print(serialNumber, candidates, pred)
                 if pred == 0:
@@ -124,7 +135,12 @@ def _evaluate_group(
     return (correct / count, np.mean(tia), np.std(tia))
 
 
-def _vote(model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float) -> int:
+def _vote(
+    model: "FailureDetectionNN",
+    X_values: torch.Tensor,
+    ratio: float,
+    voting_algorithm: VotingAlgorithm,
+) -> int:
     """
     X_values correspond to a sequence of consecutive samples to a given hard drive
     The function returns 0 (the HD is considered as failing) if more than ratio of the samples are considered as failing, else it returns 1
@@ -132,7 +148,13 @@ def _vote(model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float) -> 
     if model.description & NNDescription.BINARY:
         return _vote_binary(model, X_values, ratio)
     elif model.description & NNDescription.MULTILEVEL:
-        return _vote_multilevel(model, X_values, ratio)
+        match voting_algorithm:
+            case VotingAlgorithm.STANDARD:
+                return _vote_multilevel(model, X_values, ratio)
+            case VotingAlgorithm.VAT2H:
+                return _vat2h(model, X_values, ratio)
+            case _:
+                raise ValueError("Invalid Value for voting_algorithm")
 
     return 0
 
@@ -187,6 +209,7 @@ def _train_temporal(
     loss_fn: nn.Module,
     optimizer: torch.optim.Optimizer,
     voteCount: int,
+    voteThreshold: float = 0.5,
 ) -> None:
     serialNumbers: npt.NDArray[np.int64] = train_x["serial-number"].unique()
     if model.description & NNDescription.BINARY:
@@ -249,7 +272,17 @@ def _train_temporal(
             optimizer.param_groups[0]["lr"] = optimizer.param_groups[0]["lr"] / 2
             # print(optimizer.param_groups[0]["lr"])
         if (epoch + 1) % model.settings.evaluate_interval == 0:
-            model.evaluate(test_good, test_bad, voteCount)
+            if model.description & NNDescription.TEMPORAL:
+                model.evaluate(
+                    test_good,
+                    test_bad,
+                    voteCount,
+                    voteThreshold,
+                    VotingAlgorithm.STANDARD,
+                )
+                model.evaluate(
+                    test_good, test_bad, voteCount, voteThreshold, VotingAlgorithm.VAT2H
+                )
 
 
 def _vote_binary(
@@ -264,10 +297,19 @@ def _vote_multilevel(
     model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float
 ) -> int:
     predictions: torch.Tensor = model(X_values)
-    # Algorithm described by Health Status Assessment and Failure Prediction for Hard Drives with Recurrent Neural Networks
     good: int = 0
     for pred in predictions:
         pred = nn.Softmax(dim=0)(pred)
         if pred[:-2].sum() < pred[-1]:
             good += 1
     return 1 if good >= len(X_values) * (1 - ratio) else 0
+
+
+def _vat2h(model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float) -> int:
+    predictions: torch.Tensor = model(X_values)
+
+    cnt = [0] * predictions.size(dim=1)
+    for pred in predictions:
+        cnt[torch.argmax(pred)] += 1
+
+    return 1 if pred[:-2].sum() <= pred[-1] else 0

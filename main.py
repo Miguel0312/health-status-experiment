@@ -18,17 +18,14 @@ if len(sys.argv) < 2:
     exit(0)
 
 # TODO: read this from the command line arguments or from the config file
-vote_test = False
+vote_test = True
 compute_change_rates = True
 
 # TODO: deduce this from the config files
 attributes = [
-    "feature_count",
-    "vote_threshold",
+    "voting_algorithm",
     "feature_count",
     "good_bad_ratio",
-    "max_depth",
-    "min_samples_leaf",
 ]
 
 for fileIDX, file_name in enumerate(sys.argv[1:]):
@@ -123,7 +120,8 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
         except KeyboardInterrupt:
             pass
         finally:
-            results.append(experiment_config.model[i].failure_result[-1])
+            if len(experiment_config.model[i].failure_result) != 0:
+                results.append(experiment_config.model[i].failure_result[-1])
 
             timestr = time.strftime("%Y_%m_%d-%H_%M_%S.txt")
             with open(path.join("results", timestr), "w") as f:
@@ -166,13 +164,15 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
     if vote_test:
         experiment_config.model[0].failure_result = []
         # Evaluate the same model with the other voting parameters
-        for i in range(1, len(experiment_config.model)):
+        for i in range(0, len(experiment_config.model)):
+            print(i)
             # Always use the same model
             experiment_config.model[0].evaluate(
                 good_test,
                 bad_test,
                 experiment_config.vote_count[i],
                 experiment_config.vote_threshold[i],
+                experiment_config.voting_algorithm[i],
             )
             results.append(experiment_config.model[0].failure_result[0])
             experiment_config.model[0].failure_result = []

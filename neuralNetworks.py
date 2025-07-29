@@ -52,7 +52,6 @@ class FailureDetectionNN(nn.Module, FailureDetectionModel):
         self.description: NNDescription = NNDescription(0)
         self.net: nn.Module
         self.loss: list[float] = []
-        
 
     def train_model(
         self,
@@ -83,8 +82,9 @@ class FailureDetectionNN(nn.Module, FailureDetectionModel):
         data_bad: pd.DataFrame,
         voteCount: int,
         ratio: float = 0.5,
+        votingAlgorithm: utils.VotingAlgorithm = utils.VotingAlgorithm.STANDARD,
     ):
-        utils.evaluate(self, data_good, data_bad, voteCount, ratio)
+        utils.evaluate(self, data_good, data_bad, voteCount, ratio, votingAlgorithm)
 
     def validateDescription(self) -> bool:
         if self.description == 0:
