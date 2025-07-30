@@ -18,14 +18,13 @@ if len(sys.argv) < 2:
     exit(0)
 
 # TODO: read this from the command line arguments or from the config file
-vote_test = True
+vote_test = False
 compute_change_rates = True
 
 # TODO: deduce this from the config files
 attributes = [
-    "voting_algorithm",
     "feature_count",
-    "good_bad_ratio",
+    "feature_count",
 ]
 
 for fileIDX, file_name in enumerate(sys.argv[1:]):
@@ -53,7 +52,7 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
         # TODO: check if the features change a lot when CHANGE_RATE_INTERVAL and NUMBER_OF_SAMPLES change
         data = featureSelection.selectFeatures(
             data,
-            featureSelection.FeatureSelectionAlgorithm.Z_SCORE,
+            experiment_config.feature_selection_algorithm[i],
             experiment_config.feature_count[i],
         )
         assert len(list(data.columns)[2:]) == experiment_config.feature_count[i]

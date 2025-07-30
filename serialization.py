@@ -127,15 +127,30 @@ def _load_base(config: ExperimentConfig, experiment_description):
     config.feature_count = process_field(
         experiment_description["preprocessing"]["feature_count"], maxi
     )
-    # TODO: since these two take enums, it should be a little different when there are multiple values
-    config.feature_selection_algorithm = process_field(
-        FeatureSelectionAlgorithm[
-            experiment_description["preprocessing"][
-                "feature_selection_algorithm"
-            ].upper()
-        ],
-        maxi,
-    )
+
+    if (
+        type(experiment_description["preprocessing"]["feature_selection_algorithm"])
+        is list
+    ):
+        config.feature_selection_algorithm = process_field(
+            [
+                FeatureSelectionAlgorithm[x.upper()]
+                for x in experiment_description["preprocessing"][
+                    "feature_selection_algorithm"
+                ]
+            ],
+            maxi,
+        )
+    else:
+        config.feature_selection_algorithm = process_field(
+            FeatureSelectionAlgorithm[
+                experiment_description["preprocessing"][
+                    "feature_selection_algorithm"
+                ].upper()
+            ],
+            maxi,
+        )
+
     config.health_status_algorithm = process_field(
         HealthStatusAlgorithm[
             experiment_description["preprocessing"]["health_status_algorithm"].upper()
