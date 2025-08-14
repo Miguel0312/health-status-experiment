@@ -9,6 +9,7 @@
 - [ ] Implement the voting algorithm from Health Status in Recurrent Networks which takes a max over multiple samples instead of adding them
 - [ ] Maybe implement feature extraction (methods listed on ) 
 - [ ] Test the regression tree with the continuous health status
+- [ ] Rerun the tests for the multilevel models
 
 ## Binary BPNN:
 

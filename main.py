@@ -65,18 +65,7 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
         good_hard_drives: pd.DataFrame = data[data["Drive Status"] == 1]
         bad_hard_drives: pd.DataFrame = data[data["Drive Status"] == -1]
 
-        bad_hard_drives = preprocess.addHealthStatus(
-            bad_hard_drives,
-            False,
-            experiment_config.health_status_algorithm[i],
-            experiment_config.health_status_count[i] - 1,
-        )
-        good_hard_drives = preprocess.addHealthStatus(
-            good_hard_drives,
-            True,
-            experiment_config.health_status_algorithm[i],
-            experiment_config.health_status_count[i] - 1,
-        )
+        # bad_hard_drives = preprocess.getLastSamples(bad_hard_drives, experiment_config.number_of_failing_samples[i])
 
         # print("Creating testing and training datasets")
         X_train, y_train, good_test, bad_test = dataSelection.train_test(
@@ -91,10 +80,14 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
             experiment_config.number_of_failing_samples[i],
         )
 
-        # X_train = preprocess.getLastSamples(
-        #     X_train,
-        #     experiment_config.number_of_failing_samples[i],
-        # )
+        y_train = preprocess.computeHealthStatus(X_train, y_train, experiment_config.health_status_algorithm[i], experiment_config.health_status_count[i])
+
+        # cnt = [0,0,0,0,0,0,0,0]
+        # for index, value in y_train.items():
+        #     cnt[value] += 1
+        # print(cnt)
+        # exit(0)
+
 
         # print("Training the AI model")
 

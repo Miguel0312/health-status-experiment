@@ -5,22 +5,24 @@ number_of_failing_samples = 12
 
 [preprocessing]
 change_rate_interval = 1
-feature_count = [5,10,15,20,24]
-feature_selection_algorithm = "rank_sum"
+feature_count = 19
+feature_selection_algorithm = "z_score"
 health_status_algorithm = "discrete"
-good_bad_ratio = 20.0
+good_bad_ratio = 0.6
+# good_bad_ratio = 17
 
 [model]
 model_type = "NN"
-model = "BinaryRNN"
+model = "BinaryBPNN"
 health_status_count = 2
-hidden_nodes = 10
-epoch_count = 700
+hidden_nodes = 30
+epoch_count = 1500
 learning_rate = 0.1
-evaluate_interval = 700
-lr_decay_interval = 100
-lookback = 6
+evaluate_interval = 1500
+lr_decay_interval = 100000
 
 [vote]
 vote_count = 1
 vote_threshold = 0.5
+
+# Specify the loss_fn and the optimizer

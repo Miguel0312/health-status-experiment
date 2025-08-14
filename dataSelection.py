@@ -48,9 +48,9 @@ def train_test(
     ]
 
     df: pd.DataFrame = pd.concat([bad_train, good_train])
-    df = df.drop(["Drive Status"], axis=1)
+    # df = df.drop(["Drive Status"], axis=1)
 
-    y_train: pd.Series[int] = df.pop("Health Status")
+    y_train: pd.Series[int] = df.pop("Drive Status")
     x_train: pd.DataFrame = df
 
     return x_train, y_train, good_test, bad_test

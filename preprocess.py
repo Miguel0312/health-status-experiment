@@ -58,25 +58,27 @@ def LinearAlgorithm(good: bool, mini: int, maxi: int, i: int, n: int) -> int:
     Linearly map the values [0,n-1] to [maxi, mini]
     """
     if good:
-        return maxi + 1
-    return maxi - math.floor((maxi - (mini - 1)) * i / n)
+        return maxi - 1
+    val = math.floor((n-i-1)*(maxi-1-mini)/n)
+    assert(val >= 0 and val <= maxi - 2)
+    return val
 
 def ContinuousAlgorithm(good: bool, mini: int, maxi: int, i: int, n: int) -> float:
     """
     Linearly map the values [0,n-1] to [maxi, mini]
     """
     if good:
-        return maxi + 1
-    return maxi + 1 - (maxi - (mini - 1)) * (i+1) / n
+        return maxi - 1
+    return mini + (maxi-2-mini)*(n-1-i) / (n-1)
 
 
 def NonSaturatedAlgorithm(good: bool, mini: int, maxi: int, i: int, n: int) -> float:
     return 0.9 if good else 0.1
 
 
-def addHealthStatus(
-    df: pd.DataFrame, good: bool, algorithm: HealthStatusAlgorithm, maxLevel: int
-) -> pd.DataFrame:
+def computeHealthStatus(
+    x: pd.DataFrame, y: pd.Series, algorithm: HealthStatusAlgorithm, maxLevel: int
+) -> pd.Series:
     """
           A column with a score in [0,maxLevel] is given to each sample
     If good is set, it is always equal to maxLevel
@@ -94,12 +96,13 @@ def addHealthStatus(
             assert maxLevel == 1
             func = NonSaturatedAlgorithm
 
-    serialNumbers: npt.NDArray[np.int32] = df["serial-number"].unique()
+    serialNumbers: npt.NDArray[np.int32] = x["serial-number"].unique()
     healthStatusValues: list[int] = []
     for serialNumber in serialNumbers:
-        cnt: int = len(df[df["serial-number"] == serialNumber])
-        newValues: list[int] = [func(good, 0, maxLevel - 1, i, cnt) for i in range(cnt)]
+        hd_data = x[x["serial-number"] == serialNumber]
+        cnt: int = len(hd_data)
+        good = y[hd_data.index[0]] > 0 
+        newValues: list[int] = [func(good, 0, maxLevel, i, cnt) for i in range(cnt)]
         healthStatusValues = healthStatusValues + newValues
 
-    df = df.assign(**{"Health Status": healthStatusValues})
-    return df
+    return pd.Series(healthStatusValues)

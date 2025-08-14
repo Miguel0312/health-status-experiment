@@ -101,7 +101,7 @@ def _evaluate_group(
         serialNumbers: npt.NDArray[np.int64] = data["serial-number"].unique()
         count: int = len(serialNumbers)
         X: pd.DataFrame = data.drop(
-            columns=["Health Status", "Drive Status", "serial-number"], axis=1
+            columns=["Drive Status", "serial-number"], axis=1
         )
         correct: int = 0
         tia: list[int] = []
