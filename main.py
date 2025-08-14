@@ -25,6 +25,11 @@ compute_change_rates = True
 attributes = [
     "feature_count",
     "feature_count",
+    "feature_count",
+    "feature_count",
+    "feature_count",
+    "feature_count",
+    "feature_count",
 ]
 
 for fileIDX, file_name in enumerate(sys.argv[1:]):

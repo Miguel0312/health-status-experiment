@@ -7,7 +7,7 @@ number_of_failing_samples = 24
 change_rate_interval = 6
 feature_count = 24
 feature_selection_algorithm = "z_score"
-health_status_algorithm = "linear"
+health_status_algorithm = "discrete"
 good_bad_ratio = [1, 5, 10]
 
 [model]

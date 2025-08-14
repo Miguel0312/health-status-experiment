@@ -8,21 +8,18 @@ change_rate_interval = 1
 feature_count = 19
 feature_selection_algorithm = "z_score"
 health_status_algorithm = "discrete"
-good_bad_ratio = 0.6
-# good_bad_ratio = 17
+good_bad_ratio = 10.0
 
 [model]
-model_type = "NN"
-model = "MultiLevelBPNN"
-health_status_count = 4
-hidden_nodes = 30
-epoch_count = 1500
+model = "MultiLevelLSTM"
+health_status_count = [3, 4, 5, 6]
+hidden_nodes = 10
+epoch_count = 700
 learning_rate = 0.1
-evaluate_interval = 1500
-lr_decay_interval = 100000
+evaluate_interval = 700
+lr_decay_interval = 100
+lookback = 6
 
 [vote]
 vote_count = 1
 vote_threshold = 0.5
-
-# Specify the loss_fn and the optimizer

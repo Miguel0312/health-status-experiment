@@ -46,13 +46,8 @@ def positive(samples: list[list[float]]):
     left = 2083
     right = 2866
 
-    mini = 1000000
-    maxi = -1
-
     for x in samples:
         inv = inversions(x)
-        mini = min(inv, mini)
-        maxi = max(inv, maxi)
         if inv >= left and inv <= right:
             cnt += 1
 

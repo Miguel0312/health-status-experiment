@@ -48,8 +48,9 @@ def getLastSamples(df: pd.DataFrame, N: int) -> pd.DataFrame:
 
 
 class HealthStatusAlgorithm(Enum):
-    LINEAR = 1
+    DISCRETE = 1
     NON_SATURATED = 2
+    CONTINUOUS = 3
 
 
 def LinearAlgorithm(good: bool, mini: int, maxi: int, i: int, n: int) -> int:
@@ -59,6 +60,14 @@ def LinearAlgorithm(good: bool, mini: int, maxi: int, i: int, n: int) -> int:
     if good:
         return maxi + 1
     return maxi - math.floor((maxi - (mini - 1)) * i / n)
+
+def ContinuousAlgorithm(good: bool, mini: int, maxi: int, i: int, n: int) -> float:
+    """
+    Linearly map the values [0,n-1] to [maxi, mini]
+    """
+    if good:
+        return maxi + 1
+    return maxi + 1 - (maxi - (mini - 1)) * (i+1) / n
 
 
 def NonSaturatedAlgorithm(good: bool, mini: int, maxi: int, i: int, n: int) -> float:
@@ -77,8 +86,10 @@ def addHealthStatus(
     func: Callable[[bool, int, int, int, int], int] | None = None
 
     match algorithm:
-        case HealthStatusAlgorithm.LINEAR:
+        case HealthStatusAlgorithm.DISCRETE:
             func = LinearAlgorithm
+        case HealthStatusAlgorithm.CONTINUOUS:
+            func = ContinuousAlgorithm
         case HealthStatusAlgorithm.NON_SATURATED:
             assert maxLevel == 1
             func = NonSaturatedAlgorithm

@@ -12,9 +12,8 @@ good_bad_ratio = 0.6
 # good_bad_ratio = 17
 
 [model]
-model_type = "NN"
 model = "MultiLevelBPNN"
-health_status_count = 4
+health_status_count = [3,4,5,6,7]
 hidden_nodes = 30
 epoch_count = 1500
 learning_rate = 0.1

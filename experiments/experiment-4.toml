@@ -5,14 +5,14 @@ number_of_failing_samples = 12
 
 [preprocessing]
 change_rate_interval = 1
-feature_count = 19
-feature_selection_algorithm = "z_score"
+feature_count = [5,10,15,20,24]
+feature_selection_algorithm = "reverse_arrangement"
 health_status_algorithm = "discrete"
-good_bad_ratio = 20.0
+good_bad_ratio = 15.0
 
 [model]
 model_type = "NN"
-model = "BinaryRNN"
+model = "BinaryLSTM"
 health_status_count = 2
 hidden_nodes = 10
 epoch_count = 700
