@@ -43,6 +43,7 @@ def train_test(
             good_hard_drives["serial-number"].isin(serial_number_good_train)
         ]
         good_train = good_train.sample(n = int(good_bad_ratio * len(bad_train)))
+        
     good_test: pd.DataFrame = good_hard_drives[
         good_hard_drives["serial-number"].isin(serial_number_good_test)
     ]

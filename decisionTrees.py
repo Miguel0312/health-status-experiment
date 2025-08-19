@@ -69,7 +69,7 @@ class ClassificationTree(FailureDetectionModel):
         serialNumbers = data["serial-number"].unique()
         count: int = len(serialNumbers)
         X: pd.DataFrame = data.drop(
-            columns=["Health Status", "Drive Status", "serial-number"], axis=1
+            columns=["Drive Status", "serial-number"], axis=1
         )
         correct: int = 0
         tia: list[int] = []
@@ -103,7 +103,10 @@ class ClassificationTree(FailureDetectionModel):
         return (correct / count, np.mean(tia), np.std(tia))
 
     def _vote(self, x_values: torch.Tensor, ratio: float):
-        s = sum(self.tree.predict(x_values))
+        pred = self.tree.predict(x_values)
+        s = sum(pred)
+
+        # TODO: VAT2H is needed when using more than 2 health status and more than 1 vote
 
         return 1 if s >= len(x_values) * (1 - ratio) else 0
 
@@ -159,7 +162,7 @@ class RegressionTree(FailureDetectionModel):
         serialNumbers = data["serial-number"].unique()
         count: int = len(serialNumbers)
         X: pd.DataFrame = data.drop(
-            columns=["Health Status", "Drive Status", "serial-number"], axis=1
+            columns=["Drive Status", "serial-number"], axis=1
         )
         correct: int = 0
         tia: list[int] = []
@@ -194,5 +197,7 @@ class RegressionTree(FailureDetectionModel):
 
     def _vote(self, x_values: torch.Tensor, ratio: float):
         s = sum(self.tree.predict(x_values))
+
+        # TODO: a real algorithm voting algorithm is needed for health_status_count > 2 and vote_count > 1 at the same time
 
         return 1 if s >= len(x_values) * (1 - ratio) else 0

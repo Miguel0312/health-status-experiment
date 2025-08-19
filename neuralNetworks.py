@@ -148,8 +148,6 @@ class MultiLevelBPNN(FailureDetectionNN):
             nn.Linear(input_count, hidden_nodes),
             nn.ReLU(),
             nn.Linear(hidden_nodes, output_count),
-            # nn.Sigmoid(),
-            # nn.Softmax(dim=1)
         )
 
     def forward(self, x: torch.Tensor):

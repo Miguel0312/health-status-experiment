@@ -10,7 +10,6 @@ import random
 import torch
 import sys
 import numpy as np
-
 from utils import NNDescription
 
 if len(sys.argv) < 2:
