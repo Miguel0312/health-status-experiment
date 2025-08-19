@@ -71,7 +71,7 @@ class NeuralNetworkConfig(ExperimentConfig):
     learning_rate: list[float] = dataclasses.field(default_factory=list)
     lookback: list[int] = dataclasses.field(default_factory=list)
 
-
+@dataclass
 class DecisionTreeConfig(ExperimentConfig):
     model_type: modelBase.ModelType = modelBase.ModelType.TREE
     tree_type: decisionTrees.TreeType = decisionTrees.TreeType.UNDEFINED
