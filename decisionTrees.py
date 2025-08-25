@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 import torch
 import numpy as np
-
+import utils
 
 class TreeType(Enum):
     CLASSIFICATION = 1
@@ -50,13 +50,14 @@ class ClassificationTree(FailureDetectionModel):
         self,
         data_good: pd.DataFrame,
         data_bad: pd.DataFrame,
-        voteCount: int,
+        vote_count: int,
         ratio: float = 0.5,
+        voting_algorithm: utils.VotingAlgorithm = utils.VotingAlgorithm.STANDARD
     ):
-        (far, _, _) = self._evaluate_group(data_good, voteCount, ratio, 1)
+        (far, _, _) = self._evaluate_group(data_good, vote_count, ratio, 1)
 
         far = 1 - far
-        (fdr, tia, stdDev) = self._evaluate_group(data_bad, voteCount, ratio, 0)
+        (fdr, tia, stdDev) = self._evaluate_group(data_bad, vote_count, ratio, 0)
         self.failure_result.append((far, fdr, tia, stdDev))
 
         print(
@@ -145,6 +146,7 @@ class RegressionTree(FailureDetectionModel):
         data_bad: pd.DataFrame,
         voteCount: int,
         ratio: float = 0.5,
+        voting_algorithm: utils.VotingAlgorithm = utils.VotingAlgorithm.STANDARD
     ):
         (far, _, _) = self._evaluate_group(data_good, voteCount, ratio, 1)
 

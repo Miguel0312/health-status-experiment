@@ -18,17 +18,19 @@ if len(sys.argv) < 2:
 
 # TODO: read this from the command line arguments or from the config file
 vote_test = False
-compute_change_rates = True
+compute_change_rates = False
 
 # TODO: deduce this from the config files
 attributes = [
+    "health_status_count",
+    "health_status_count",
+    "health_status_count",
+    "health_status_count",
     "feature_count",
-    "feature_count",
-    "feature_count",
-    "feature_count",
-    "feature_count",
-    "feature_count",
-    "feature_count",
+    "good_bad_ratio",
+    "hidden_nodes",
+    "learning_rate",
+    "lr_decay_interval"
 ]
 
 for fileIDX, file_name in enumerate(sys.argv[1:]):
@@ -53,18 +55,16 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
                 data, experiment_config.change_rate_interval[i]
             )
 
-        # TODO: check if the features change a lot when CHANGE_RATE_INTERVAL and NUMBER_OF_SAMPLES change
         data = featureSelection.selectFeatures(
             data,
             experiment_config.feature_selection_algorithm[i],
             experiment_config.feature_count[i],
         )
+
         assert len(list(data.columns)[2:]) == experiment_config.feature_count[i]
 
         good_hard_drives: pd.DataFrame = data[data["Drive Status"] == 1]
         bad_hard_drives: pd.DataFrame = data[data["Drive Status"] == -1]
-
-        # bad_hard_drives = preprocess.getLastSamples(bad_hard_drives, experiment_config.number_of_failing_samples[i])
 
         # print("Creating testing and training datasets")
         X_train, y_train, good_test, bad_test = dataSelection.train_test(
@@ -80,13 +80,6 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
         )
 
         y_train = preprocess.computeHealthStatus(X_train, y_train, experiment_config.health_status_algorithm[i], experiment_config.health_status_count[i])
-
-        # cnt = [0,0,0,0,0,0,0,0]
-        # for index, value in y_train.items():
-        #     cnt[value] += 1
-        # print(cnt)
-        # exit(0)
-
 
         # print("Training the AI model")
 
@@ -158,6 +151,7 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
                 break
 
     if vote_test:
+        results = []
         experiment_config.model[0].failure_result = []
         # Evaluate the same model with the other voting parameters
         for i in range(0, len(experiment_config.model)):

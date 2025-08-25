@@ -216,6 +216,7 @@ def _load_neural_network(experiment_description):
     config.nn_type = neuralNetworks.Model[experiment_description["model"]["model"]]
 
     for i in range(maxi):
+        torch.manual_seed(0)
         match config.nn_type:
             case neuralNetworks.Model.BinaryBPNN:
                 config.model.append(

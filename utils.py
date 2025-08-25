@@ -131,7 +131,6 @@ def _evaluate_group(
 
             if result == target:
                 correct += 1
-
     return (correct / count, np.mean(tia), np.std(tia))
 
 
@@ -279,9 +278,6 @@ def _train_temporal(
                     voteCount,
                     voteThreshold,
                     VotingAlgorithm.STANDARD,
-                )
-                model.evaluate(
-                    test_good, test_bad, voteCount, voteThreshold, VotingAlgorithm.VAT2H
                 )
 
 
