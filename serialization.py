@@ -39,6 +39,8 @@ class ExperimentConfig:
         default_factory=list
     )
 
+    changing_attribute: list[str] = dataclasses.field(default_factory=list)
+
     def print_experiment(self, i) -> str:
         res: str = "{"
 
@@ -59,6 +61,27 @@ class ExperimentConfig:
 
         return res
 
+    def process_field(self, dictionary: dict, table: str, key: str, length: int):
+        field = dictionary[table][key]
+        if type(field) is list:
+            if len(field) != length:
+                raise ValueError("All lists must have the same length")
+            self.changing_attribute.append(key)
+
+            return field
+        else:
+            return [field] * length
+
+    def process_enum(self, key: str, val, length: int):
+        if type(val) is list:
+            if len(val) != length:
+                raise ValueError("All lists must have the same length")
+            self.changing_attribute.append(key)
+            return val
+
+        else:
+            return [val] * length
+
 
 @dataclass
 class NeuralNetworkConfig(ExperimentConfig):
@@ -71,6 +94,7 @@ class NeuralNetworkConfig(ExperimentConfig):
     learning_rate: list[float] = dataclasses.field(default_factory=list)
     lookback: list[int] = dataclasses.field(default_factory=list)
 
+
 @dataclass
 class DecisionTreeConfig(ExperimentConfig):
     model_type: modelBase.ModelType = modelBase.ModelType.TREE
@@ -80,15 +104,6 @@ class DecisionTreeConfig(ExperimentConfig):
     )
     max_depth: list[int] = dataclasses.field(default_factory=list)
     min_samples_leaf: list[int] = dataclasses.field(default_factory=list)
-
-
-def process_field(field, length):
-    if type(field) is list:
-        if len(field) != length:
-            raise ValueError("All lists must have the same length")
-        return field
-    else:
-        return [field] * length
 
 
 def load_experiment(file_name: str) -> ExperimentConfig:
@@ -113,26 +128,27 @@ def _load_base(config: ExperimentConfig, experiment_description):
             if type(field) is list:
                 maxi = max(maxi, len(field))
 
-    config.seed = process_field(experiment_description["dataset"]["seed"], maxi)
-    config.data_file = process_field(
-        experiment_description["dataset"]["data_file"], maxi
+    config.seed = config.process_field(experiment_description, "dataset", "seed", maxi)
+    config.data_file = config.process_field(
+        experiment_description, "dataset", "data_file", maxi
     )
-    config.number_of_failing_samples = process_field(
-        experiment_description["dataset"]["number_of_failing_samples"], maxi
+    config.number_of_failing_samples = config.process_field(
+        experiment_description, "dataset", "number_of_failing_samples", maxi
     )
 
-    config.change_rate_interval = process_field(
-        experiment_description["preprocessing"]["change_rate_interval"], maxi
+    config.change_rate_interval = config.process_field(
+        experiment_description, "preprocessing", "change_rate_interval", maxi
     )
-    config.feature_count = process_field(
-        experiment_description["preprocessing"]["feature_count"], maxi
+    config.feature_count = config.process_field(
+        experiment_description, "preprocessing", "feature_count", maxi
     )
 
     if (
         type(experiment_description["preprocessing"]["feature_selection_algorithm"])
         is list
     ):
-        config.feature_selection_algorithm = process_field(
+        config.feature_selection_algorithm = config.process_enum(
+            "feature_selection_algorithm",
             [
                 FeatureSelectionAlgorithm[x.upper()]
                 for x in experiment_description["preprocessing"][
@@ -142,7 +158,8 @@ def _load_base(config: ExperimentConfig, experiment_description):
             maxi,
         )
     else:
-        config.feature_selection_algorithm = process_field(
+        config.feature_selection_algorithm = config.process_enum(
+            "feature_selection_algorithm",
             FeatureSelectionAlgorithm[
                 experiment_description["preprocessing"][
                     "feature_selection_algorithm"
@@ -151,31 +168,47 @@ def _load_base(config: ExperimentConfig, experiment_description):
             maxi,
         )
 
-    config.health_status_algorithm = process_field(
-        HealthStatusAlgorithm[
-            experiment_description["preprocessing"]["health_status_algorithm"].upper()
-        ],
-        maxi,
-    )
-    config.good_bad_ratio = process_field(
-        experiment_description["preprocessing"]["good_bad_ratio"], maxi
+    if type(experiment_description["preprocessing"]["health_status_algorithm"]) is list:
+        config.health_status_algorithm = config.process_enum(
+            "health_status_algorithm",
+            [
+                HealthStatusAlgorithm[x.upper()]
+                for x in experiment_description["preprocessing"][
+                    "health_status_algorithm"
+                ]
+            ],
+            maxi,
+        )
+    else:
+        config.health_status_algorithm = config.process_enum(
+            "health_status_algorithm",
+            HealthStatusAlgorithm[
+                experiment_description["preprocessing"][
+                    "health_status_algorithm"
+                ].upper()
+            ],
+            maxi,
+        )
+    config.good_bad_ratio = config.process_field(
+        experiment_description, "preprocessing", "good_bad_ratio", maxi
     )
 
-    config.health_status_count = process_field(
-        experiment_description["model"]["health_status_count"], maxi
+    config.health_status_count = config.process_field(
+        experiment_description, "model", "health_status_count", maxi
     )
 
-    config.vote_count = process_field(
-        experiment_description["vote"]["vote_count"], maxi
+    config.vote_count = config.process_field(
+        experiment_description, "vote", "vote_count", maxi
     )
-    config.vote_threshold = process_field(
-        experiment_description["vote"]["vote_threshold"], maxi
+    config.vote_threshold = config.process_field(
+        experiment_description, "vote", "vote_threshold", maxi
     )
 
     if "voting_algorithm" not in experiment_description["vote"]:
         config.voting_algorithm = [utils.VotingAlgorithm.STANDARD] * maxi
     elif type(experiment_description["vote"]["voting_algorithm"]) is list:
-        config.voting_algorithm = process_field(
+        config.voting_algorithm = config.process_enum(
+            "voting_algorithm",
             [
                 utils.VotingAlgorithm[x.upper()]
                 for x in experiment_description["vote"]["voting_algorithm"]
@@ -183,7 +216,8 @@ def _load_base(config: ExperimentConfig, experiment_description):
             maxi,
         )
     else:
-        config.voting_algorithm = process_field(
+        config.voting_algorithm = config.process_enum(
+            "voting_algorithm",
             utils.VotingAlgorithm[
                 experiment_description["vote"]["voting_algorithm"].upper()
             ],
@@ -198,19 +232,19 @@ def _load_neural_network(experiment_description):
 
     maxi = _load_base(config, experiment_description)
 
-    config.hidden_nodes = process_field(
-        experiment_description["model"]["hidden_nodes"], maxi
+    config.hidden_nodes = config.process_field(
+        experiment_description, "model", "hidden_nodes", maxi
     )
-    config.epoch_count = process_field(
-        experiment_description["model"]["epoch_count"], maxi
+    config.epoch_count = config.process_field(
+        experiment_description, "model", "epoch_count", maxi
     )
-    config.learning_rate = process_field(
-        experiment_description["model"]["learning_rate"], maxi
+    config.learning_rate = config.process_field(
+        experiment_description, "model", "learning_rate", maxi
     )
     # TODO: if the model is temporal, then it needs a lookback
     if "lookback" in experiment_description["model"]:
-        config.lookback = process_field(
-            experiment_description["model"]["lookback"], maxi
+        config.lookback = config.process_field(
+            experiment_description, "model", "lookback", maxi
         )
 
     config.nn_type = neuralNetworks.Model[experiment_description["model"]["model"]]
@@ -265,9 +299,11 @@ def _load_neural_network(experiment_description):
                     "Value of field model.model doesn't match any neural network architecture"
                 )
 
-    lr_decay = process_field(experiment_description["model"]["lr_decay_interval"], maxi)
-    evaluate_interval = process_field(
-        experiment_description["model"]["evaluate_interval"], maxi
+    lr_decay = config.process_field(
+        experiment_description, "model", "lr_decay_interval", maxi
+    )
+    evaluate_interval = config.process_field(
+        experiment_description, "model", "evaluate_interval", maxi
     )
 
     for idx, model in enumerate(config.model):
@@ -320,21 +356,25 @@ def _load_tree(experiment_description):
     maxi = _load_base(config, experiment_description)
 
     if type(experiment_description["model"]["criterion"]) is list:
-        config.criterion = process_field(
+        config.criterion = config.process_enum(
+            "criterion",
             [x.upper() for x in experiment_description["model"]["criterion"]],
             maxi,
         )
     else:
-        config.criterion = process_field(
+        config.criterion = config.process_enum(
+            "criterion",
             decisionTrees.TreeCriterion[
                 experiment_description["model"]["criterion"].upper()
             ],
             maxi,
         )
 
-    config.max_depth = process_field(experiment_description["model"]["max_depth"], maxi)
-    config.min_samples_leaf = process_field(
-        experiment_description["model"]["min_samples_leaf"], maxi
+    config.max_depth = config.process_field(
+        experiment_description, "model", "max_depth", maxi
+    )
+    config.min_samples_leaf = config.process_field(
+        experiment_description, "model", "min_samples_leaf", maxi
     )
 
     config.tree_type = decisionTrees.TreeType[
@@ -351,7 +391,10 @@ def _load_tree(experiment_description):
         elif config.tree_type == decisionTrees.TreeType.REGRESSION:
             config.model.append(
                 decisionTrees.RegressionTree(
-                    config.criterion[i], config.max_depth[i], config.min_samples_leaf[i], config.health_status_count[i]
+                    config.criterion[i],
+                    config.max_depth[i],
+                    config.min_samples_leaf[i],
+                    config.health_status_count[i],
                 )
             )
         else:

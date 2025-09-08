@@ -59,9 +59,10 @@ def LinearAlgorithm(good: bool, mini: int, maxi: int, i: int, n: int) -> int:
     """
     if good:
         return maxi - 1
-    val = math.floor((n-i-1)*(maxi-1-mini)/n)
-    assert(val >= 0 and val <= maxi - 2)
+    val = math.floor((n - i - 1) * (maxi - 1 - mini) / n)
+    assert val >= 0 and val <= maxi - 2
     return val
+
 
 def ContinuousAlgorithm(good: bool, mini: int, maxi: int, i: int, n: int) -> float:
     """
@@ -69,7 +70,7 @@ def ContinuousAlgorithm(good: bool, mini: int, maxi: int, i: int, n: int) -> flo
     """
     if good:
         return maxi - 1
-    return mini + (maxi-2-mini)*(n-1-i) / (n-1)
+    return mini + (maxi - 2 - mini) * (n - 1 - i) / (n - 1)
 
 
 def NonSaturatedAlgorithm(good: bool, mini: int, maxi: int, i: int, n: int) -> float:
@@ -101,7 +102,7 @@ def computeHealthStatus(
     for serialNumber in serialNumbers:
         hd_data = x[x["serial-number"] == serialNumber]
         cnt: int = len(hd_data)
-        good = y[hd_data.index[0]] > 0 
+        good = y[hd_data.index[0]] > 0
         newValues: list[int] = [func(good, 0, maxLevel, i, cnt) for i in range(cnt)]
         healthStatusValues = healthStatusValues + newValues
 

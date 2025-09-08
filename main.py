@@ -17,24 +17,12 @@ if len(sys.argv) < 2:
     print("Usage: python3 main.py experiment1 [experiment2 experiment3 ...]")
     exit(0)
 
-# TODO: read this from the command line arguments or from the config file
+# Set vote_test to true if all tests done in an experiment present changes only on
+# the voting process, so it can be trained only once and evaluated multiple times
 vote_test = False
 compute_change_rates = True
 
-# TODO: deduce this from the config files
-attributes = [
-    "vote_count",
-    "health_status_count",
-    "health_status_count",
-    "health_status_count",
-    "vote_threshold",
-    "good_bad_ratio",
-    "hidden_nodes",
-    "learning_rate",
-    "lr_decay_interval"
-]
-
-for fileIDX, file_name in enumerate(sys.argv[1:]):
+for file_name in sys.argv[1:]:
     experiment_config: serialization.ExperimentConfig = serialization.load_experiment(
         file_name
     )
@@ -80,7 +68,12 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
             experiment_config.number_of_failing_samples[i],
         )
 
-        y_train = preprocess.computeHealthStatus(X_train, y_train, experiment_config.health_status_algorithm[i], experiment_config.health_status_count[i])
+        y_train = preprocess.computeHealthStatus(
+            X_train,
+            y_train,
+            experiment_config.health_status_algorithm[i],
+            experiment_config.health_status_count[i],
+        )
 
         # print("Training the AI model")
 
@@ -97,7 +90,7 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
                         experiment_config.optimizer[i],
                         experiment_config.vote_count[i],
                         experiment_config.vote_threshold[i],
-                        experiment_config.voting_algorithm[i]
+                        experiment_config.voting_algorithm[i],
                     )
                 case modelBase.ModelType.TREE:
                     experiment_config.model[i].train_model(
@@ -107,7 +100,7 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
                         bad_test,
                         experiment_config.vote_count[i],
                         experiment_config.vote_threshold[i],
-                        experiment_config.voting_algorithm[i]
+                        experiment_config.voting_algorithm[i],
                     )
                 case _:
                     raise ValueError("Invalid Value of model_type")
@@ -179,7 +172,12 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
             f"FAR: {100*result[0]:.3f}%, FDR: {100*result[1]:.3f}%, TIA: {result[2]:.3f}, TIA Std Dev: {result[3]:.3f}"
         )
 
-    attribute = attributes[fileIDX]
+    attribute: str
+    if len(experiment_config.changing_attribute) == 0:
+        # Defaul value
+        attribute = "seed"
+    else:
+        attribute = experiment_config.changing_attribute[0]
 
     print(f"|{attribute}|FAR(%)|FDR(%)|TIA(h)|TIA SD(h)|")
     print("|-------------|------|------|------|---------|")
