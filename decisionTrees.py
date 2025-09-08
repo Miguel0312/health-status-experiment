@@ -79,7 +79,7 @@ class DecisionTree(FailureDetectionModel):
         X: pd.DataFrame = data.drop(columns=["Drive Status", "serial-number"], axis=1)
         correct: int = 0
         tia: list[int] = []
-        for serial_number in serial_numbers[:1]:
+        for serial_number in serial_numbers:
             indices: list[int] = list(
                 data[data["serial-number"] == serial_number].index
             )

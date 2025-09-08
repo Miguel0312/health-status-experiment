@@ -70,9 +70,6 @@ def inversions(x: list[float]):
 def reverse_arrangement(
     goodSamples: list[list[float]], badSamples: list[list[float]]
 ) -> float:
-    # Sources: Hard drive failure prediction using non-parametric statistical methods
-    # Machine Learning Methods for Predicting Failure in Hard Drives: A Multiple-Instance Application
-
     good_ratio = positive(goodSamples)
     bad_ratio = positive(badSamples)
 
