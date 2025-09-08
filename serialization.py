@@ -351,7 +351,7 @@ def _load_tree(experiment_description):
         elif config.tree_type == decisionTrees.TreeType.REGRESSION:
             config.model.append(
                 decisionTrees.RegressionTree(
-                    config.criterion[i], config.max_depth[i], config.min_samples_leaf[i]
+                    config.criterion[i], config.max_depth[i], config.min_samples_leaf[i], config.health_status_count[i]
                 )
             )
         else:

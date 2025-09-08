@@ -18,15 +18,15 @@ if len(sys.argv) < 2:
 
 # TODO: read this from the command line arguments or from the config file
 vote_test = False
-compute_change_rates = False
+compute_change_rates = True
 
 # TODO: deduce this from the config files
 attributes = [
+    "vote_count",
     "health_status_count",
     "health_status_count",
     "health_status_count",
-    "health_status_count",
-    "feature_count",
+    "vote_threshold",
     "good_bad_ratio",
     "hidden_nodes",
     "learning_rate",
@@ -95,6 +95,8 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
                         experiment_config.loss_fn[i],
                         experiment_config.optimizer[i],
                         experiment_config.vote_count[i],
+                        experiment_config.vote_threshold[i],
+                        experiment_config.voting_algorithm[i]
                     )
                 case modelBase.ModelType.TREE:
                     experiment_config.model[i].train_model(
@@ -103,6 +105,8 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
                         good_test,
                         bad_test,
                         experiment_config.vote_count[i],
+                        experiment_config.vote_threshold[i],
+                        experiment_config.voting_algorithm[i]
                     )
                 case _:
                     raise ValueError("Invalid Value of model_type")
@@ -155,7 +159,6 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
         experiment_config.model[0].failure_result = []
         # Evaluate the same model with the other voting parameters
         for i in range(0, len(experiment_config.model)):
-            print(i)
             # Always use the same model
             experiment_config.model[0].evaluate(
                 good_test,

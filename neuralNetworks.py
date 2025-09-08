@@ -63,6 +63,8 @@ class FailureDetectionNN(nn.Module, FailureDetectionModel):
         loss_fn: nn.Module,
         optimizer: optim.Optimizer,
         voteCount: int,
+        voteThreshold: float,
+        voting_algorithm: utils.VotingAlgorithm
     ):
         utils.trainNN(
             self,
@@ -74,6 +76,8 @@ class FailureDetectionNN(nn.Module, FailureDetectionModel):
             loss_fn,
             optimizer,
             voteCount,
+            voteThreshold,
+            voting_algorithm
         )
 
     def evaluate(
@@ -82,9 +86,9 @@ class FailureDetectionNN(nn.Module, FailureDetectionModel):
         data_bad: pd.DataFrame,
         voteCount: int,
         ratio: float = 0.5,
-        votingAlgorithm: utils.VotingAlgorithm = utils.VotingAlgorithm.STANDARD,
+        voting_algorithm: utils.VotingAlgorithm = utils.VotingAlgorithm.STANDARD,
     ):
-        utils.evaluate(self, data_good, data_bad, voteCount, ratio, votingAlgorithm)
+        utils.evaluate(self, data_good, data_bad, voteCount, ratio, voting_algorithm)
 
     def validateDescription(self) -> bool:
         if self.description == 0:

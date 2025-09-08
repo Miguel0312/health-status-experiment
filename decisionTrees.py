@@ -37,6 +37,8 @@ class ClassificationTree(FailureDetectionModel):
         test_good,
         test_bad,
         voteCount,
+        vote_threshold,
+        voting_algorithm: utils.VotingAlgorithm
     ):
         x_df: pd.DataFrame = train_x.drop(["serial-number"], axis=1)
         x: torch.Tensor = torch.tensor(x_df.values, dtype=torch.float32)
@@ -114,11 +116,12 @@ class ClassificationTree(FailureDetectionModel):
 
 # TODO: refactor the common code with ClassificationTree
 class RegressionTree(FailureDetectionModel):
-    def __init__(self, criterion: TreeCriterion, max_depth: int, min_samples_leaf: int):
+    def __init__(self, criterion: TreeCriterion, max_depth: int, min_samples_leaf: int, health_status_count: int):
         super(RegressionTree, self).__init__()
         self.criterion: TreeCriterion = criterion
         self.max_depth: int = max_depth
         self.min_samples_leaf: int = min_samples_leaf
+        self.health_status_count: int = health_status_count
         self.tree: DecisionTreeRegressor = DecisionTreeRegressor(
             criterion=self.criterion.value,
             max_depth=self.max_depth,
@@ -132,13 +135,15 @@ class RegressionTree(FailureDetectionModel):
         test_good,
         test_bad,
         voteCount,
+        vote_threshold,
+        voting_algorithm: utils.VotingAlgorithm
     ):
         x_df: pd.DataFrame = train_x.drop(["serial-number"], axis=1)
         x: torch.Tensor = torch.tensor(x_df.values, dtype=torch.float32)
 
         y: torch.Tensor = torch.tensor(train_y.values, dtype=torch.float32)
         self.tree.fit(x, y)
-        self.evaluate(test_good, test_bad, voteCount)
+        self.evaluate(test_good, test_bad, voteCount, vote_threshold, voting_algorithm)
 
     def evaluate(
         self,
@@ -148,10 +153,10 @@ class RegressionTree(FailureDetectionModel):
         ratio: float = 0.5,
         voting_algorithm: utils.VotingAlgorithm = utils.VotingAlgorithm.STANDARD
     ):
-        (far, _, _) = self._evaluate_group(data_good, voteCount, ratio, 1)
+        (far, _, _) = self._evaluate_group(data_good, voteCount, ratio, 1, voting_algorithm)
 
         far = 1 - far
-        (fdr, tia, stdDev) = self._evaluate_group(data_bad, voteCount, ratio, 0)
+        (fdr, tia, stdDev) = self._evaluate_group(data_bad, voteCount, ratio, 0, voting_algorithm)
         self.failure_result.append((far, fdr, tia, stdDev))
 
         print(
@@ -159,7 +164,7 @@ class RegressionTree(FailureDetectionModel):
         )
 
     def _evaluate_group(
-        self, data: pd.DataFrame, voteCount: int, ratio: float, target: int
+        self, data: pd.DataFrame, voteCount: int, ratio: float, target: int, voting_algorithm: utils.VotingAlgorithm
     ):
         serialNumbers = data["serial-number"].unique()
         count: int = len(serialNumbers)
@@ -168,6 +173,7 @@ class RegressionTree(FailureDetectionModel):
         )
         correct: int = 0
         tia: list[int] = []
+
         for serialNumber in serialNumbers:
             # indices: list[int] = list(
             #     data[data["serial-number"] == serialNumber].index[-voteCount:]
@@ -184,11 +190,11 @@ class RegressionTree(FailureDetectionModel):
 
             for i in range(0, len(X_test) - voteCount):
                 candidates = X_test[i : i + voteCount]
-                pred = self._vote(candidates, ratio)
+                pred = self._vote(candidates, ratio, voting_algorithm)
                 # if first:
                 #     print(serialNumber, candidates, pred)
                 if pred == 0:
-                    tia.append(len(X_test) - i + voteCount)
+                    tia.append(len(X_test) - (i + voteCount))
                     result = 0
                     break
 
@@ -197,9 +203,19 @@ class RegressionTree(FailureDetectionModel):
 
         return (correct / count, np.mean(tia), np.std(tia))
 
-    def _vote(self, x_values: torch.Tensor, ratio: float):
-        s = sum(self.tree.predict(x_values))
-
-        # TODO: a real algorithm voting algorithm is needed for health_status_count > 2 and vote_count > 1 at the same time
-
-        return 1 if s >= len(x_values) * (1 - ratio) else 0
+    def _vote(self, x_values: torch.Tensor, ratio: float, voting_algorithm: utils.VotingAlgorithm):
+        if voting_algorithm == utils.VotingAlgorithm.STANDARD:
+            s = sum(self.tree.predict(x_values))
+            lim = 1-ratio if self.health_status_count == 2 else self.health_status_count - 2
+            return 1 if s >= lim*len(x_values) else 0
+        elif voting_algorithm == utils.VotingAlgorithm.VAT2H:
+            pred = self.tree.predict(x_values)
+            cnt = [0]*self.health_status_count
+            for p in pred:
+                cnt[round(p)] += 1
+            
+            if self.health_status_count == 2:
+                return 1 if cnt[0] < cnt[1] else 0
+            return 1 if cnt[:-2] < cnt[-1] else 0
+        else:
+            raise(ValueError("Invalid Value for Voting Algorithm"))

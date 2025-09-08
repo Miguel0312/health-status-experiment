@@ -21,6 +21,10 @@ class NNDescription(IntFlag):
     RNN = auto()
     BP = auto()
 
+class VotingAlgorithm(Enum):
+    STANDARD = 1
+    VAT2H = 2
+    SEQUENTIAL = 3
 
 def trainNN(
     model: "FailureDetectionNN",
@@ -32,6 +36,8 @@ def trainNN(
     loss_fn: nn.Module,
     optimizer: torch.optim.Optimizer,
     voteCount: int,
+    voteThreshold: float,
+    voting_algorithm: VotingAlgorithm
 ) -> None:
     if model.description & NNDescription.BP:
         _train_bp(
@@ -44,6 +50,8 @@ def trainNN(
             loss_fn,
             optimizer,
             voteCount,
+            voteThreshold,
+            voting_algorithm
         )
     elif model.description & NNDescription.TEMPORAL:
         _train_temporal(
@@ -56,12 +64,9 @@ def trainNN(
             loss_fn,
             optimizer,
             voteCount,
+            voteThreshold,
+            voting_algorithm
         )
-
-
-class VotingAlgorithm(Enum):
-    STANDARD = 1
-    VAT2H = 2
 
 
 def evaluate(
@@ -87,7 +92,6 @@ def evaluate(
         f"FAR: {100*far:.3f}%, FDR: {100*fdr:.3f}%, TIA: {tia:.3f}h, TIA Std Dev: {stdDev:.3f}"
     )
 
-
 # TODO: transform target into an enum
 def _evaluate_group(
     model: "FailureDetectionNN",
@@ -106,12 +110,7 @@ def _evaluate_group(
         correct: int = 0
         tia: list[int] = []
         for serialNumber in serialNumbers:
-            # indices: list[int] = list(
-            #     data[data["serial-number"] == serialNumber].index[-voteCount:]
-            # )
-            # X_test: torch.Tensor = torch.tensor(
-            #     X.loc[indices].values, dtype=torch.float32
-            # )
+
             indices: list[int] = list(data[data["serial-number"] == serialNumber].index)
             X_test: torch.Tensor = torch.tensor(
                 X.loc[indices].values, dtype=torch.float32
@@ -119,11 +118,13 @@ def _evaluate_group(
 
             result = 1
 
+            if voting_algorithm == VotingAlgorithm.SEQUENTIAL:
+                X_test = model(X_test)
+
             for i in range(0, len(X_test) - voteCount):
                 candidates = X_test[i : i + voteCount]
                 pred = _vote(model, candidates, ratio, voting_algorithm)
-                # if first:
-                #     print(serialNumber, candidates, pred)
+
                 if pred == 0:
                     tia.append(len(X_test) - i + voteCount)
                     result = 0
@@ -131,6 +132,7 @@ def _evaluate_group(
 
             if result == target:
                 correct += 1
+
     return (correct / count, np.mean(tia), np.std(tia))
 
 
@@ -138,7 +140,7 @@ def _vote(
     model: "FailureDetectionNN",
     X_values: torch.Tensor,
     ratio: float,
-    voting_algorithm: VotingAlgorithm,
+    voting_algorithm: VotingAlgorithm = VotingAlgorithm.STANDARD
 ) -> int:
     """
     X_values correspond to a sequence of consecutive samples to a given hard drive
@@ -152,6 +154,8 @@ def _vote(
                 return _vote_multilevel(model, X_values, ratio)
             case VotingAlgorithm.VAT2H:
                 return _vat2h(model, X_values, ratio)
+            case VotingAlgorithm.SEQUENTIAL:
+                return _vote_sequential(model, X_values, ratio)
             case _:
                 raise ValueError("Invalid Value for voting_algorithm")
 
@@ -168,6 +172,8 @@ def _train_bp(
     loss_fn: nn.Module,
     optimizer: torch.optim.Optimizer,
     voteCount: int,
+    voteThreshold: float,
+    voting_algorithm: VotingAlgorithm
 ):
     x_df: pd.DataFrame = train_x.drop(["serial-number"], axis=1)
     x: torch.Tensor = torch.tensor(x_df.values, dtype=torch.float32)
@@ -195,7 +201,7 @@ def _train_bp(
         if (epoch + 1) % model.settings.lr_decay_interval == 0:
             optimizer.param_groups[0]["lr"] = optimizer.param_groups[0]["lr"] / 2
         if (epoch + 1) % model.settings.evaluate_interval == 0:
-            model.evaluate(test_good, test_bad, voteCount)
+            model.evaluate(test_good, test_bad, voteCount, voteThreshold, voting_algorithm)
 
 
 def _train_temporal(
@@ -209,6 +215,7 @@ def _train_temporal(
     optimizer: torch.optim.Optimizer,
     voteCount: int,
     voteThreshold: float = 0.5,
+    voting_algorithm: VotingAlgorithm = VotingAlgorithm.STANDARD
 ) -> None:
     serialNumbers: npt.NDArray[np.int64] = train_x["serial-number"].unique()
     if model.description & NNDescription.BINARY:
@@ -232,9 +239,6 @@ def _train_temporal(
         if len(batch) == lookback:
             batches.append(batch)
             answer.append(y[index + i + 1 : index + lookback + i + 1])
-            # print(len(batches[-1]))
-            # print(batches[-1])
-            # exit(0)
 
         index += len(hd_data)
 
@@ -271,14 +275,13 @@ def _train_temporal(
             optimizer.param_groups[0]["lr"] = optimizer.param_groups[0]["lr"] / 2
             # print(optimizer.param_groups[0]["lr"])
         if (epoch + 1) % model.settings.evaluate_interval == 0:
-            if model.description & NNDescription.TEMPORAL:
-                model.evaluate(
-                    test_good,
-                    test_bad,
-                    voteCount,
-                    voteThreshold,
-                    VotingAlgorithm.STANDARD,
-                )
+            model.evaluate(
+                test_good,
+                test_bad,
+                voteCount,
+                voteThreshold,
+                voting_algorithm,
+            )
 
 
 def _vote_binary(
@@ -286,6 +289,7 @@ def _vote_binary(
 ) -> int:
     predictions: torch.Tensor = model(X_values).squeeze()
     predicted_classes: torch.types.Number = (predictions > 0.5).float().sum().item()
+
     return 1 if predicted_classes >= len(X_values) * (1 - ratio) else 0
 
 
@@ -308,4 +312,11 @@ def _vat2h(model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float) ->
     for pred in predictions:
         cnt[torch.argmax(pred)] += 1
 
+    return 1 if pred[:-2].sum() <= pred[-1] else 0
+
+def _vote_sequential(model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float) -> int:
+    cnt = [0] * X_values.size(dim=1)
+    for pred in X_values:
+        cnt[torch.argmax(pred)] += 1
+    
     return 1 if pred[:-2].sum() <= pred[-1] else 0
