@@ -10,6 +10,7 @@ import random
 import torch
 import sys
 import numpy as np
+import os
 from utils import NNDescription
 
 if len(sys.argv) < 2:
@@ -117,6 +118,8 @@ for fileIDX, file_name in enumerate(sys.argv[1:]):
                 results.append(experiment_config.model[i].failure_result[-1])
 
             timestr = time.strftime("%Y_%m_%d-%H_%M_%S.txt")
+            if not path.isdir("results"):
+                os.makedir("results")
             with open(path.join("results", timestr), "w") as f:
                 f.write(experiment_config.print_experiment(i))
                 f.write("\n#\n")
