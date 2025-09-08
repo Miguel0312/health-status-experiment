@@ -205,7 +205,7 @@ def _load_base(config: ExperimentConfig, experiment_description):
     )
 
     if "voting_algorithm" not in experiment_description["vote"]:
-        config.voting_algorithm = [utils.VotingAlgorithm.STANDARD] * maxi
+        config.voting_algorithm = [utils.VotingAlgorithm.SCORE] * maxi
     elif type(experiment_description["vote"]["voting_algorithm"]) is list:
         config.voting_algorithm = config.process_enum(
             "voting_algorithm",

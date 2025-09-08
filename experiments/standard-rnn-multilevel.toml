@@ -1,7 +1,7 @@
 [dataset]
-seed = 41
+seed = 0
 data_file = "data/baidu-dataset.csv"
-number_of_failing_samples = 12
+number_of_failing_samples = 96
 
 [preprocessing]
 change_rate_interval = 1
@@ -15,12 +15,13 @@ model_type = "NN"
 model = "MultiLevelRNN"
 health_status_count = 4
 hidden_nodes = 10
-epoch_count = 700
+epoch_count = 1500
 learning_rate = 0.1
-evaluate_interval = 700
-lr_decay_interval = 100
+evaluate_interval = 1500
+lr_decay_interval = 200
 lookback = 6
 
 [vote]
-vote_count = 1
+vote_count = 7
 vote_threshold = 0.5
+voting_algorithm = "CLASS"

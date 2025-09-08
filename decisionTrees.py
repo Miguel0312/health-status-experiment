@@ -50,7 +50,7 @@ class DecisionTree(FailureDetectionModel):
         data_bad: pd.DataFrame,
         vote_count: int,
         vote_threshold: float = 0.5,
-        voting_algorithm: utils.VotingAlgorithm = utils.VotingAlgorithm.STANDARD,
+        voting_algorithm: utils.VotingAlgorithm = utils.VotingAlgorithm.SCORE,
     ):
         (far, _, _) = self._evaluate_group(
             data_good, vote_count, vote_threshold, 1, voting_algorithm
@@ -126,7 +126,7 @@ class ClassificationTree(DecisionTree):
         vote_threshold: float,
         voting_algorithm: utils.VotingAlgorithm,
     ):
-        assert voting_algorithm == utils.VotingAlgorithm.STANDARD
+        assert voting_algorithm == utils.VotingAlgorithm.SCORE
 
         pred = self.tree.predict(x_values)
         s = sum(pred)
@@ -156,7 +156,7 @@ class RegressionTree(DecisionTree):
         vote_threshold: float,
         voting_algorithm: utils.VotingAlgorithm,
     ):
-        if voting_algorithm == utils.VotingAlgorithm.STANDARD:
+        if voting_algorithm == utils.VotingAlgorithm.SCORE:
             s = sum(self.tree.predict(x_values))
             lim = (
                 1 - vote_threshold
@@ -164,7 +164,7 @@ class RegressionTree(DecisionTree):
                 else self.health_status_count - 2
             )
             return 1 if s >= lim * len(x_values) else 0
-        elif voting_algorithm == utils.VotingAlgorithm.VAT2H:
+        elif voting_algorithm == utils.VotingAlgorithm.CLASS:
             pred = self.tree.predict(x_values)
             cnt = [0] * self.health_status_count
             for p in pred:

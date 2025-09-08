@@ -9,7 +9,6 @@ feature_count = 19
 feature_selection_algorithm = "z_score"
 health_status_algorithm = "discrete"
 good_bad_ratio = 0.6
-# good_bad_ratio = 17
 
 [model]
 model_type = "NN"
@@ -24,5 +23,4 @@ lr_decay_interval = 100000
 [vote]
 vote_count = 1
 vote_threshold = 0.5
-
-# Specify the loss_fn and the optimizer
+voting_algorithm = "SCORE"

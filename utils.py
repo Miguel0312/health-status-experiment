@@ -21,10 +21,12 @@ class NNDescription(IntFlag):
     RNN = auto()
     BP = auto()
 
+
 class VotingAlgorithm(Enum):
-    STANDARD = 1
-    VAT2H = 2
+    SCORE = 1
+    CLASS = 2
     SEQUENTIAL = 3
+
 
 def trainNN(
     model: "FailureDetectionNN",
@@ -37,7 +39,7 @@ def trainNN(
     optimizer: torch.optim.Optimizer,
     voteCount: int,
     voteThreshold: float,
-    voting_algorithm: VotingAlgorithm
+    voting_algorithm: VotingAlgorithm,
 ) -> None:
     if model.description & NNDescription.BP:
         _train_bp(
@@ -51,7 +53,7 @@ def trainNN(
             optimizer,
             voteCount,
             voteThreshold,
-            voting_algorithm
+            voting_algorithm,
         )
     elif model.description & NNDescription.TEMPORAL:
         _train_temporal(
@@ -65,7 +67,7 @@ def trainNN(
             optimizer,
             voteCount,
             voteThreshold,
-            voting_algorithm
+            voting_algorithm,
         )
 
 
@@ -75,7 +77,7 @@ def evaluate(
     data_bad: pd.DataFrame,
     voteCount: int,
     ratio: float = 0.5,
-    voting_algorithm=VotingAlgorithm.STANDARD,
+    voting_algorithm=VotingAlgorithm.SCORE,
 ) -> None:
     model.eval()
 
@@ -92,6 +94,7 @@ def evaluate(
         f"FAR: {100*far:.3f}%, FDR: {100*fdr:.3f}%, TIA: {tia:.3f}h, TIA Std Dev: {stdDev:.3f}"
     )
 
+
 # TODO: transform target into an enum
 def _evaluate_group(
     model: "FailureDetectionNN",
@@ -104,13 +107,10 @@ def _evaluate_group(
     with torch.no_grad():
         serialNumbers: npt.NDArray[np.int64] = data["serial-number"].unique()
         count: int = len(serialNumbers)
-        X: pd.DataFrame = data.drop(
-            columns=["Drive Status", "serial-number"], axis=1
-        )
+        X: pd.DataFrame = data.drop(columns=["Drive Status", "serial-number"], axis=1)
         correct: int = 0
         tia: list[int] = []
         for serialNumber in serialNumbers:
-
             indices: list[int] = list(data[data["serial-number"] == serialNumber].index)
             X_test: torch.Tensor = torch.tensor(
                 X.loc[indices].values, dtype=torch.float32
@@ -140,20 +140,20 @@ def _vote(
     model: "FailureDetectionNN",
     X_values: torch.Tensor,
     ratio: float,
-    voting_algorithm: VotingAlgorithm = VotingAlgorithm.STANDARD
+    voting_algorithm: VotingAlgorithm = VotingAlgorithm.SCORE,
 ) -> int:
     """
     X_values correspond to a sequence of consecutive samples to a given hard drive
     The function returns 0 (the HD is considered as failing) if more than ratio of the samples are considered as failing, else it returns 1
     """
     if model.description & NNDescription.BINARY:
-        return _vote_binary(model, X_values, ratio)
+        return _vote_score_binary(model, X_values, ratio)
     elif model.description & NNDescription.MULTILEVEL:
         match voting_algorithm:
-            case VotingAlgorithm.STANDARD:
-                return _vote_multilevel(model, X_values, ratio)
-            case VotingAlgorithm.VAT2H:
-                return _vat2h(model, X_values, ratio)
+            case VotingAlgorithm.SCORE:
+                return _vote_score_multilevel(model, X_values, ratio)
+            case VotingAlgorithm.CLASS:
+                return _vote_class(model, X_values, ratio)
             case VotingAlgorithm.SEQUENTIAL:
                 return _vote_sequential(model, X_values, ratio)
             case _:
@@ -173,7 +173,7 @@ def _train_bp(
     optimizer: torch.optim.Optimizer,
     voteCount: int,
     voteThreshold: float,
-    voting_algorithm: VotingAlgorithm
+    voting_algorithm: VotingAlgorithm,
 ):
     x_df: pd.DataFrame = train_x.drop(["serial-number"], axis=1)
     x: torch.Tensor = torch.tensor(x_df.values, dtype=torch.float32)
@@ -201,7 +201,9 @@ def _train_bp(
         if (epoch + 1) % model.settings.lr_decay_interval == 0:
             optimizer.param_groups[0]["lr"] = optimizer.param_groups[0]["lr"] / 2
         if (epoch + 1) % model.settings.evaluate_interval == 0:
-            model.evaluate(test_good, test_bad, voteCount, voteThreshold, voting_algorithm)
+            model.evaluate(
+                test_good, test_bad, voteCount, voteThreshold, voting_algorithm
+            )
 
 
 def _train_temporal(
@@ -215,7 +217,7 @@ def _train_temporal(
     optimizer: torch.optim.Optimizer,
     voteCount: int,
     voteThreshold: float = 0.5,
-    voting_algorithm: VotingAlgorithm = VotingAlgorithm.STANDARD
+    voting_algorithm: VotingAlgorithm = VotingAlgorithm.SCORE,
 ) -> None:
     serialNumbers: npt.NDArray[np.int64] = train_x["serial-number"].unique()
     if model.description & NNDescription.BINARY:
@@ -284,7 +286,7 @@ def _train_temporal(
             )
 
 
-def _vote_binary(
+def _vote_score_binary(
     model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float
 ) -> int:
     predictions: torch.Tensor = model(X_values).squeeze()
@@ -293,7 +295,7 @@ def _vote_binary(
     return 1 if predicted_classes >= len(X_values) * (1 - ratio) else 0
 
 
-def _vote_multilevel(
+def _vote_score_multilevel(
     model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float
 ) -> int:
     predictions: torch.Tensor = model(X_values)
@@ -305,7 +307,9 @@ def _vote_multilevel(
     return 1 if good >= len(X_values) * (1 - ratio) else 0
 
 
-def _vat2h(model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float) -> int:
+def _vote_class(
+    model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float
+) -> int:
     predictions: torch.Tensor = model(X_values)
 
     cnt = [0] * predictions.size(dim=1)
@@ -314,9 +318,12 @@ def _vat2h(model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float) ->
 
     return 1 if pred[:-2].sum() <= pred[-1] else 0
 
-def _vote_sequential(model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float) -> int:
+
+def _vote_sequential(
+    model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float
+) -> int:
     cnt = [0] * X_values.size(dim=1)
     for pred in X_values:
         cnt[torch.argmax(pred)] += 1
-    
+
     return 1 if pred[:-2].sum() <= pred[-1] else 0

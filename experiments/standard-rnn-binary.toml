@@ -1,5 +1,5 @@
 [dataset]
-seed = 0
+seed = 14
 data_file = "data/baidu-dataset.csv"
 number_of_failing_samples = 12
 

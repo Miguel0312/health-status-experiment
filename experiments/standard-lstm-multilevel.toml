@@ -24,3 +24,4 @@ lookback = 6
 [vote]
 vote_count = 1
 vote_threshold = 0.5
+voting_algorithm = "SCORE"

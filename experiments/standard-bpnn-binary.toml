@@ -1,5 +1,3 @@
-# Check approach and results of Proactive Drive Failure Prediction for Large Scale Storage Systems
-
 [dataset]
 seed = 0
 data_file = "data/baidu-dataset.csv"
