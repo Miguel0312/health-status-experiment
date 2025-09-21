@@ -21,7 +21,8 @@ def computeChangeRates(df: pd.DataFrame, interval: int) -> pd.DataFrame:
     for idx, column in enumerate(ratesColumns):
         tmpValues: list[float] = list(df[column])
         tmpValues = [np.nan] * interval + tmpValues[:-interval]
-        dif: npt.NDArray[np.float64] = np.subtract(df[column], tmpValues)
+        # dif: npt.NDArray[np.float64] = np.multiply(df[column], tmpValues)
+        dif = tmpValues
         df[titles[idx]] = dif
 
     serial_numbers_shifted: list[int] = list(df["serial-number"])
