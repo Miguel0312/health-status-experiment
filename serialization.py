@@ -320,7 +320,7 @@ def _load_neural_network(experiment_description):
             )
 
         if (
-            model.description & neuralNetworks.NNDescription.MULTILEVEL
+            model.description & neuralNetworks.NNDescription.MULTICLASS
         ) and config.health_status_count[idx] < 3:
             raise ValueError(
                 "When training a multi level model, the number of classes must be at least 3"
@@ -332,7 +332,6 @@ def _load_neural_network(experiment_description):
             model.settings.lookback = config.lookback[idx]
 
     for i in range(maxi):
-        # TODO: try with the Adam optimizer
         config.optimizer.append(
             torch.optim.SGD(
                 config.model[i].parameters(),

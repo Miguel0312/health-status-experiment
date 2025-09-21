@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 class NNDescription(IntFlag):
     BINARY = auto()
-    MULTILEVEL = auto()
+    MULTICLASS = auto()
     TEMPORAL = auto()
     UNIQUE = auto()  # Takes only one sample at each step, in contrast to a temporal model which takes a sequence
     LSTM = auto()
@@ -148,10 +148,10 @@ def _vote(
     """
     if model.description & NNDescription.BINARY:
         return _vote_score_binary(model, X_values, ratio)
-    elif model.description & NNDescription.MULTILEVEL:
+    elif model.description & NNDescription.MULTICLASS:
         match voting_algorithm:
             case VotingAlgorithm.SCORE:
-                return _vote_score_multilevel(model, X_values, ratio)
+                return _vote_score_multiclass(model, X_values, ratio)
             case VotingAlgorithm.CLASS:
                 return _vote_class(model, X_values, ratio)
             case VotingAlgorithm.SEQUENTIAL:
@@ -186,7 +186,7 @@ def _train_bp(
         y: torch.Tensor = torch.tensor(train_y.values, dtype=torch.float32)
         # y.apply_(lambda x: (0.1 + 0.8*x))
         # print(y)
-    elif model.description & NNDescription.MULTILEVEL:
+    elif model.description & NNDescription.MULTICLASS:
         y = torch.tensor(train_y.values, dtype=torch.int64)
 
     for epoch in range(epochs):
@@ -222,7 +222,7 @@ def _train_temporal(
     serialNumbers: npt.NDArray[np.int64] = train_x["serial-number"].unique()
     if model.description & NNDescription.BINARY:
         y: torch.Tensor = torch.tensor(train_y.values, dtype=torch.float32)
-    elif model.description & NNDescription.MULTILEVEL:
+    elif model.description & NNDescription.MULTICLASS:
         y = torch.tensor(train_y.values, dtype=torch.int64)
 
     batches: list[torch.Tensor] = []
@@ -295,7 +295,7 @@ def _vote_score_binary(
     return 1 if predicted_classes >= len(X_values) * (1 - ratio) else 0
 
 
-def _vote_score_multilevel(
+def _vote_score_multiclass(
     model: "FailureDetectionNN", X_values: torch.Tensor, ratio: float
 ) -> int:
     predictions: torch.Tensor = model(X_values)

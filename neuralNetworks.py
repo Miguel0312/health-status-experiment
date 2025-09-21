@@ -94,7 +94,7 @@ class FailureDetectionNN(nn.Module, FailureDetectionModel):
         if self.description == 0:
             raise ValueError("No description entered for the model")
         isBinary = self.description & NNDescription.BINARY
-        isMultiLevel = self.description & NNDescription.MULTILEVEL
+        isMultiLevel = self.description & NNDescription.MULTICLASS
         isTemporal = self.description & NNDescription.TEMPORAL
         isUnique = self.description & NNDescription.UNIQUE
         isLSTM = self.description & NNDescription.LSTM
@@ -103,10 +103,10 @@ class FailureDetectionNN(nn.Module, FailureDetectionModel):
 
         if isBinary and isMultiLevel:
             raise ValueError(
-                "The model must be either binary or multilevel, but not both"
+                "The model must be either binary or multiclass, but not both"
             )
         if (not isBinary) and (not isMultiLevel):
-            raise ValueError("The model must be one of binary or multilevel")
+            raise ValueError("The model must be one of binary or culticlass")
         if isTemporal and isUnique:
             raise ValueError(
                 "The model must be either unique or temporal, but not both"
@@ -145,7 +145,7 @@ class MultiLevelBPNN(FailureDetectionNN):
     def __init__(self, input_count: int, hidden_nodes: int, output_count: int) -> None:
         super(MultiLevelBPNN, self).__init__(input_count, hidden_nodes, output_count)
         self.description |= (
-            NNDescription.BP | NNDescription.MULTILEVEL | NNDescription.UNIQUE
+            NNDescription.BP | NNDescription.MULTICLASS | NNDescription.UNIQUE
         )
         self.output_count = output_count
         self.net = nn.Sequential(
@@ -181,7 +181,7 @@ class MultiLevelRNN(FailureDetectionNN):
         super(MultiLevelRNN, self).__init__(input_count, hidden_nodes, output_count)
 
         self.description |= (
-            NNDescription.MULTILEVEL | NNDescription.TEMPORAL | NNDescription.RNN
+            NNDescription.MULTICLASS | NNDescription.TEMPORAL | NNDescription.RNN
         )
         self.net = nn.RNN(input_count, hidden_nodes, nonlinearity="relu")
         self.linear = nn.Linear(hidden_nodes, output_count)
@@ -218,7 +218,7 @@ class MultiLevelLSTM(FailureDetectionNN):
         super(MultiLevelLSTM, self).__init__(input_count, hidden_nodes, output_count)
 
         self.description |= (
-            NNDescription.MULTILEVEL | NNDescription.LSTM | NNDescription.TEMPORAL
+            NNDescription.MULTICLASS | NNDescription.LSTM | NNDescription.TEMPORAL
         )
         self.net = nn.LSTM(input_count, hidden_nodes, batch_first=True)
         self.linear = nn.Linear(hidden_nodes, output_count)
